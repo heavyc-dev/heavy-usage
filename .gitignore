@@ -10,3 +10,6 @@ Thumbs.db
 usage-live.json
 usage-state.json
 *.tmp
+
+# Sweep loop bookkeeping (cursor/dedupe) — deliverables in heavy-usage-sweep/ are tracked
+.heavy-usage-sweep/

@@ -68,5 +68,10 @@ Because it fires every prompt, each `/loop` iteration sees fresh official number
 
 **Stale-data guard.** The statusLine refreshes `usage-live.json` only when the UI renders. In a headless/unattended run it can stop firing while the session keeps prompting, leaving the hook reading old numbers. If the capture is older than the stale window (`staleMins`, default 15m), the hook **annotates** its message ("these numbers are Nm old…") so Claude and the user know real usage may be higher. It never *suppresses* a wind-down on stale data — overshooting the wall is worse than stopping early. `/usage --json` also reports `ageSec` + `stale`.
 
+## Related: `/sweep`
+heavy-usage also bundles the **`/sweep`** skill — a usage-budgeted, resumable codebase sweep
+(`bugs | review | features | roadmap`) that uses this guard's numbers to fan out subagents
+while headroom is wide and stop cleanly at wind-down. Canonical run: `/loop /sweep <mode>`.
+
 ## Honesty note for the user
 These are the **official** figures Claude Code reports (not a token estimate). Caveat: `rate_limits` is provided **only to Claude.ai Pro/Max subscribers** and **only after the first API response** in a session — before that, or on API/console billing, `/usage` will show "no data".

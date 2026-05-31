@@ -467,6 +467,86 @@ test('formatHook annotates stale numbers but never suppresses wind-down', () => 
   assert.ok(!/old/.test(meter.formatHook(fresh, st)), 'no stale note when fresh');
 });
 
+// --- sweep-state engine -----------------------------------------------------
+
+const sweep = require('../scripts/sweep-state');
+
+// Isolate sweep state under a temp "repo root" so tests never touch the real repo.
+const SWEEP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'hu-sweep-'));
+process.env.HEAVY_USAGE_SWEEP_ROOT = SWEEP_ROOT;
+
+test('decideTier scales fan-out with headroom', () => {
+  const th = { windDown: 0.90, weeklyWindDown: 0.95 };
+  // wide headroom (5h 90-20=70pp) -> multiple scouts
+  const wide = sweep.decideTier({ five_hour: { used_percentage: 20 }, seven_day: null, thresholds: th });
+  assert.ok(wide.fanout >= 2, `expected >=2, got ${wide.fanout}`);
+  // mid (~18pp) -> 1 scout
+  const mid = sweep.decideTier({ five_hour: { used_percentage: 72 }, seven_day: null, thresholds: th });
+  assert.equal(mid.fanout, 1);
+  // tight (<10pp) -> inline, no subagents
+  const tight = sweep.decideTier({ five_hour: { used_percentage: 85 }, seven_day: null, thresholds: th });
+  assert.equal(tight.fanout, 0);
+  // worst window wins: weekly close to its wind-down dominates
+  const weekly = sweep.decideTier({ five_hour: { used_percentage: 10 }, seven_day: { used_percentage: 94 }, thresholds: th });
+  assert.equal(weekly.fanout, 0);
+  // no data -> conservative inline
+  assert.equal(sweep.decideTier({ thresholds: th }).fanout, 0);
+});
+
+test('decideTier drops a tier when stale', () => {
+  const th = { windDown: 0.90, weeklyWindDown: 0.95 };
+  const fresh = sweep.decideTier({ five_hour: { used_percentage: 20 }, thresholds: th, stale: false });
+  const stale = sweep.decideTier({ five_hour: { used_percentage: 20 }, thresholds: th, stale: true });
+  assert.ok(stale.fanout < fresh.fanout, `stale ${stale.fanout} should be < fresh ${fresh.fanout}`);
+  assert.ok(/stale/.test(stale.reason));
+});
+
+test('globToRe matches ** and * correctly', () => {
+  assert.ok(sweep.anyMatch(['src/**'], 'src/a/b.js'));
+  assert.ok(sweep.anyMatch(['*.test.js'], 'foo.test.js'));
+  assert.ok(!sweep.anyMatch(['*.test.js'], 'foo.js'));
+  assert.ok(!sweep.anyMatch(['src/*'], 'src/a/b.js')); // single * does not cross /
+});
+
+test('config round-trips and hasConfig gates prompting', () => {
+  assert.equal(sweep.hasConfig('bugs'), false);
+  sweep.saveConfig('bugs', { focus: ['scripts/**'], severityFloor: 'medium' });
+  assert.equal(sweep.hasConfig('bugs'), true);
+  assert.deepEqual(sweep.loadConfig().bugs.focus, ['scripts/**']);
+  assert.equal(sweep.hasConfig('review'), false); // independent per mode
+});
+
+test('nextSlice advances cursor and bumps depth on wrap', () => {
+  // Seed an index directly (no git needed in the temp root).
+  fs.mkdirSync(sweep.stateDir(), { recursive: true });
+  fs.writeFileSync(path.join(sweep.stateDir(), 'index.json'),
+    JSON.stringify({ files: ['a.js', 'b.js', 'c.js'], cursor: 0, depth: 0 }));
+  assert.deepEqual(sweep.nextSlice(2).slice, ['a.js', 'b.js']);
+  const s2 = sweep.nextSlice(2);
+  assert.deepEqual(s2.slice, ['c.js']);
+  assert.equal(s2.cursor, 3);
+  const s3 = sweep.nextSlice(2);      // wrapped: depth bumps, restart
+  assert.equal(s3.depth, 1);
+  assert.deepEqual(s3.slice, ['a.js', 'b.js']);
+});
+
+test('recordFindings dedupes by file+line+claim', () => {
+  const r1 = sweep.recordFindings('bugs', [
+    { file: 'x.js', line: 10, claim: 'off-by-one', severity: 'high' },
+    { file: 'y.js', line: 3, claim: 'null deref' },
+  ], 't1');
+  assert.equal(r1.added, 2);
+  const r2 = sweep.recordFindings('bugs', [
+    { file: 'x.js', line: 10, claim: 'off-by-one' }, // dup
+    { file: 'z.js', line: 1, claim: 'new one' },
+  ], 't2');
+  assert.equal(r2.added, 1);
+  assert.equal(r2.skipped, 1);
+  assert.ok(fs.readFileSync(sweep.docFor('bugs'), 'utf8').includes('off-by-one'));
+});
+
+fs.rmSync(SWEEP_ROOT, { recursive: true, force: true });
+
 // --- version sync -----------------------------------------------------------
 
 test('version is in sync across all manifests + CHANGELOG', () => {
