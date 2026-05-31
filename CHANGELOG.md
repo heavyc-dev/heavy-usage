@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0
+First stable release. The guard is feature-complete and tested (35 unit tests, cross-platform CI). Highlights since 0.1.0:
+- **Injection only winds work down at the wall.** Below wind-down the prompt is never steered; the warn band emits a status-only footer (current usage + reset) and nothing more. Behavior changes solely at wind-down.
+- **Separate 5-hour and weekly thresholds** (defaults 5h `75/90`, weekly `85/95`), each window judged against its own pair; most-severe band wins.
+- **Display:** `/usage` shows per-window status bars with colored status words and both relative + absolute (`HH:MM`) reset times; the statusLine appends a reset countdown once a window is hot.
+- Earlier hardening: validated thresholds, fixed state-dir path, stale-statusLine detection, atomic writes.
+
 ## 0.1.6
 - **Display polish.** The `/usage` report now shows the **absolute reset clock** next to the relative countdown (`resets in 1h 15m (00:50)`) so you can plan around the wall time, and **colors the status word** (green OK / yellow WARN / red WIND DOWN) with the same palette as the statusLine. The statusLine segment now **appends the reset countdown** for any window that is hot (≥ its warn threshold), e.g. `5h 88% 1h15m`, so urgency is visible without running `/usage`.
 
