@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+- **Only wind-down is injected into the prompt now; the WARN band no longer is.** The `UserPromptSubmit` hook used to inject a behavioral line as soon as 5-hour usage crossed the *warn* threshold (75%), nudging Claude toward smaller steps mid-session before any real limit pressure. It now stays silent in the prompt below the *wind-down* threshold — WARN still shows in the statusLine and the `/usage` report, it just no longer steers work. Net effect: fewer injected tokens and no behavior change until you're actually near the wall.
+- **README trimmed** to a concise what / use-cases / install / commands / how-it-works reference.
+
 ## 0.1.3
 - **Default thresholds changed to warn 75% / wind-down 90%** (were 70% / 85%). Wind-down risk is asymmetric — overshooting the limit mid-task is worse than stopping a little early — but for the typical user the old 85% stopped sooner than necessary given the every-turn re-check and the 70% warn tier. Heavy unattended loops with large context / many subagents per turn (where one turn can jump usage several points) should still lower these via `/usage thresholds 0.65 0.80`.
 
