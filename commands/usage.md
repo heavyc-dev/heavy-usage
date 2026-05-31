@@ -1,6 +1,6 @@
 ---
 description: Show your OFFICIAL Claude Code usage (5-hour + weekly rate limits, % used and reset time) and drive an auto wind-down hook that tells Claude to commit and stop cleanly before you hit a limit — built for long/unattended loops. Subcommands — setup, on/off, thresholds.
-argument-hint: "[setup] | [on|off] | [thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>]]"
+argument-hint: "[setup] | [on|off] | [thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>] [stale <min>]]"
 disable-model-invocation: true
 ---
 
@@ -26,7 +26,7 @@ Next to each window's % the statusLine and report show **pace** — how far usag
 |---|---|
 | *(empty)* | `node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-meter.js"` — print the report verbatim, then one plain-language line |
 | `on` / `off` | `node "...usage-meter.js" enable` / `disable` — toggle the auto wind-down hook |
-| `thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>]` | `node "...usage-meter.js" thresholds --warn <warn> --winddown <winddown>` and, if the user also gave weekly values, append `--weekly-warn <weeklyWarn> --weekly-winddown <weeklyWinddown>` (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`). The 5-hour and weekly windows are evaluated against their own pairs. To set the pace band, append `--pace-band <pp>` (percentage points 0–100; default 10) — the half-width of the "on track" band around linear pace. |
+| `thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>] [stale <min>]` | `node "...usage-meter.js" thresholds --warn <warn> --winddown <winddown>` and, if the user also gave weekly values, append `--weekly-warn <weeklyWarn> --weekly-winddown <weeklyWinddown>` (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`). The 5-hour and weekly windows are evaluated against their own pairs. To set the pace band, append `--pace-band <pp>` (percentage points 0–100; default 10). To set the stale window, append `--stale-mins <min>` (minutes 0–1440; default 15) — how old the captured numbers may get before the hook flags them as possibly behind reality. |
 | `setup` | Wire the statusLine — follow the **Setup** procedure below |
 
 ## Setup procedure (`/usage setup`)
@@ -64,7 +64,9 @@ With the hook on (default) the `UserPromptSubmit` hook checks the worst of your 
 - **warn** band (75–90%) → status-only FYI: Claude appends a one-line usage footer (`🔋 <window> <pct>% · resets in <t>`) so the user sees current usage/reset; it does **not** change how Claude works,
 - at **wind-down** (default 90%) → firm "stop starting new work, commit, summarize state, end the loop".
 
-Because it fires every prompt, each `/loop` iteration sees fresh official numbers and the loop closes out gracefully right before the wall. State (`enabled`, `thresholds`, `innerStatusline`) lives in `~/.claude/heavy-usage/usage-state.json` (a fixed path so the statusLine, hook, and command always agree).
+Because it fires every prompt, each `/loop` iteration sees fresh official numbers and the loop closes out gracefully right before the wall. State (`enabled`, `thresholds`, `paceBandPp`, `staleMins`, `innerStatusline`) lives in `~/.claude/heavy-usage/usage-state.json` (a fixed path so the statusLine, hook, and command always agree).
+
+**Stale-data guard.** The statusLine refreshes `usage-live.json` only when the UI renders. In a headless/unattended run it can stop firing while the session keeps prompting, leaving the hook reading old numbers. If the capture is older than the stale window (`staleMins`, default 15m), the hook **annotates** its message ("these numbers are Nm old…") so Claude and the user know real usage may be higher. It never *suppresses* a wind-down on stale data — overshooting the wall is worse than stopping early. `/usage --json` also reports `ageSec` + `stale`.
 
 ## Honesty note for the user
 These are the **official** figures Claude Code reports (not a token estimate). Caveat: `rate_limits` is provided **only to Claude.ai Pro/Max subscribers** and **only after the first API response** in a session — before that, or on API/console billing, `/usage` will show "no data".

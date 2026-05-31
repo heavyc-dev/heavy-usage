@@ -13,7 +13,7 @@
 //   node usage-meter.js                 human report (5h / 7d % + reset countdown)
 //   node usage-meter.js --json          machine JSON
 //   node usage-meter.js --hook          one-line wind-down context (silent below warn)
-//   node usage-meter.js thresholds --warn 0.75 --winddown 0.90
+//   node usage-meter.js thresholds --warn 0.75 --winddown 0.90 [--pace-band 10] [--stale-mins 15]
 //   node usage-meter.js enable | disable    toggle the wind-down hook
 //
 // Data is produced by the statusLine capturer; run `/usage setup` to wire it.
@@ -75,7 +75,7 @@ function thresholdLine(state) {
   const pct = (n) => `${Math.round(n * 100)}%`;
   return `Hook ${state.enabled ? 'ON' : 'OFF'} · 5h warn ${pct(five.warn)}/wind-down ${pct(five.windDown)}`
     + ` · weekly warn ${pct(wk.warn)}/wind-down ${pct(wk.windDown)}`
-    + ` · pace ±${lib.sanitizePaceBand(state.paceBandPp)}pp`;
+    + ` · pace ±${lib.sanitizePaceBand(state.paceBandPp)}pp · stale >${lib.sanitizeStaleMins(state.staleMins)}m`;
 }
 
 function formatHuman(live, state) {
@@ -109,6 +109,12 @@ function formatHuman(live, state) {
     const tag = lib.paceTag(w.used_percentage, w.resets_at, now, windowSec, state.paceBandPp);
     const pace = tag ? ` · pace ${tag.mag} (${tag.word || 'on track'})` : '';
     L.push(`         resets in ${lib.untilStr(w.resets_at, now)}${clk ? ` (${clk})` : ''}${pace}`);
+    // Projection: where this burn lands by reset, and ETA to 100% if it crosses first.
+    const proj = lib.paceProjection(w.used_percentage, w.resets_at, now, windowSec);
+    if (proj) {
+      const eta = proj.hitsInSec != null ? `, hits 100% in ${lib.untilStr(now + proj.hitsInSec, now)}` : '';
+      L.push(`         → projects ~${proj.endPct}% by reset${eta}`);
+    }
   };
   row('5-hour', live.five_hour, false);
   row('Weekly', live.seven_day, true);
@@ -138,23 +144,35 @@ function topSignal(live, th) {
   return best;
 }
 
+// Staleness of the captured numbers. The statusLine refreshes usage-live.json
+// only when the UI renders; if it stops (headless/unattended run) the hook would
+// otherwise act on old data silently. We annotate — never suppress a wind-down.
+function staleNote(live, state) {
+  if (!live || !live.capturedAt) return '';
+  const ageSec = Math.floor((Date.now() - live.capturedAt) / 1000);
+  if (ageSec <= lib.sanitizeStaleMins(state.staleMins) * 60) return '';
+  const mins = Math.max(1, Math.round(ageSec / 60));
+  return ` (note: these numbers are ${mins}m old — the statusLine may have stopped refreshing, so real usage could be higher)`;
+}
+
 function formatHook(live, state) {
   if (!state.enabled) return '';
   const s = topSignal(live, state.thresholds);
   if (!s || s.band === 0) return '';
   const pctNum = Math.round(s.frac * 100);
   const resets = lib.untilStr(s.window && s.window.resets_at, nowSec());
+  const stale = staleNote(live, state);
   // WARN band: a status-only FYI. It must NOT steer how Claude works (no
   // "smaller steps", no "commit more") — it only asks Claude to surface the
   // current numbers to the user as a one-line footer.
   if (s.band === 1) {
     return `[heavy-usage] FYI for the user (does not change how you work): `
-      + `${s.which} usage ${pctNum}%, resets in ${resets}. `
+      + `${s.which} usage ${pctNum}%, resets in ${resets}${stale}. `
       + `End your reply with exactly this line and nothing else added:\n`
       + `> 🔋 ${s.which} ${pctNum}% · resets in ${resets}`;
   }
   // Wind-down: the one signal that does change behavior.
-  return `[heavy-usage] WIND DOWN — official ${s.which} usage is ${pctNum}% (resets in ${resets}). `
+  return `[heavy-usage] WIND DOWN — official ${s.which} usage is ${pctNum}% (resets in ${resets})${stale}. `
     + `Do not start new work. Finish the current step, commit what is done, write a brief state summary, then stop the loop.`;
 }
 
@@ -186,11 +204,17 @@ function main() {
     const bandBad = args.includes('--pace-band') && bandRaw === null;
     const band = bandRaw != null ? Number(bandRaw) : lib.sanitizePaceBand(state.paceBandPp);
     const bandOk = !bandBad && Number.isFinite(band) && band > 0 && band <= 100;
-    if (!five.ok || !weekly.ok || !bandOk) {
+    // Optional stale window (minutes): finite, in (0,1440]. Flag-without-value is an error.
+    const staleRaw = getFlag(args, '--stale-mins');
+    const staleBad = args.includes('--stale-mins') && staleRaw === null;
+    const staleMins = staleRaw != null ? Number(staleRaw) : lib.sanitizeStaleMins(state.staleMins);
+    const staleOk = !staleBad && Number.isFinite(staleMins) && staleMins > 0 && staleMins <= 1440;
+    if (!five.ok || !weekly.ok || !bandOk || !staleOk) {
       process.stderr.write(
         'Invalid thresholds. Pass fractions 0–1 with warn < wind-down, '
         + 'e.g. `thresholds --warn 0.75 --winddown 0.90 --weekly-warn 0.85 --weekly-winddown 0.95`. '
         + 'Pace band is percentage points in (0,100], e.g. `--pace-band 10`. '
+        + 'Stale window is minutes in (0,1440], e.g. `--stale-mins 15`. '
         + 'State unchanged.\n');
       process.exitCode = 1;
       return;
@@ -200,12 +224,13 @@ function main() {
     state.thresholds.weeklyWarn = weekly.warn;
     state.thresholds.weeklyWindDown = weekly.windDown;
     state.paceBandPp = band;
+    state.staleMins = staleMins;
     lib.writeState(state);
     const pct = (n) => `${Math.round(n * 100)}%`;
     process.stdout.write(
       `Thresholds — 5h warn ${pct(five.warn)}/wind-down ${pct(five.windDown)}, `
       + `weekly warn ${pct(weekly.warn)}/wind-down ${pct(weekly.windDown)}, `
-      + `pace ±${band}pp\n`);
+      + `pace ±${band}pp, stale >${staleMins}m\n`);
     return;
   }
 
@@ -226,11 +251,15 @@ function main() {
     return;
   }
   if (args.includes('--json')) {
+    const ageSec = live && live.capturedAt ? Math.floor((Date.now() - live.capturedAt) / 1000) : null;
+    const staleMins = lib.sanitizeStaleMins(state.staleMins);
     process.stdout.write(JSON.stringify({
       five_hour: live ? live.five_hour : null,
       seven_day: live ? live.seven_day : null,
       capturedAt: live ? live.capturedAt : null,
-      thresholds: state.thresholds, paceBandPp: lib.sanitizePaceBand(state.paceBandPp), enabled: state.enabled,
+      ageSec, stale: ageSec != null ? ageSec > staleMins * 60 : null,
+      thresholds: state.thresholds, paceBandPp: lib.sanitizePaceBand(state.paceBandPp),
+      staleMins, enabled: state.enabled,
     }, null, 2) + '\n');
     return;
   }

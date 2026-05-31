@@ -426,6 +426,47 @@ test('wiredStatuslinePath extracts the capturer path (quoted + bare)', () => {
   assert.equal(session.wiredStatuslinePath(null), null);
 });
 
+// --- stale guard + pace projection ------------------------------------------
+
+test('sanitizeStaleMins clamps to (0,1440] else default', () => {
+  assert.equal(lib.sanitizeStaleMins(15), 15);
+  assert.equal(lib.sanitizeStaleMins(1440), 1440);
+  assert.equal(lib.sanitizeStaleMins(0), lib.STATE_DEFAULTS.staleMins);
+  assert.equal(lib.sanitizeStaleMins(-5), lib.STATE_DEFAULTS.staleMins);
+  assert.equal(lib.sanitizeStaleMins(5000), lib.STATE_DEFAULTS.staleMins);
+  assert.equal(lib.sanitizeStaleMins(NaN), lib.STATE_DEFAULTS.staleMins);
+});
+
+test('paceProjection extrapolates end% and 100% ETA', () => {
+  const now = 1_000_000;
+  const win = lib.WINDOW_SEC.five;            // 5h = 18000s
+  // half the window elapsed, 60% used -> projects ~120%, hits 100% before reset
+  const resets = now + win / 2;
+  const p = lib.paceProjection(60, resets, now, win);
+  assert.equal(p.endPct, 120);
+  assert.ok(p.hitsInSec > 0 && now + p.hitsInSec < resets);
+  // behind pace: 20% used at half window -> projects ~40%, never hits 100%
+  const p2 = lib.paceProjection(20, resets, now, win);
+  assert.equal(p2.endPct, 40);
+  assert.equal(p2.hitsInSec, null);
+  // too early to extrapolate (<2% elapsed) -> null
+  assert.equal(lib.paceProjection(50, now + win * 0.99, now, win), null);
+  // no resets_at -> null
+  assert.equal(lib.paceProjection(50, null, now, win), null);
+});
+
+test('formatHook annotates stale numbers but never suppresses wind-down', () => {
+  const st = { enabled: true, thresholds: lib.STATE_DEFAULTS.thresholds, staleMins: 15 };
+  const old = Date.now() - 30 * 60 * 1000;    // captured 30m ago, stale window 15m
+  const live = { capturedAt: old, five_hour: { used_percentage: 95, resets_at: Math.floor(Date.now() / 1000) + 600 }, seven_day: null };
+  const out = meter.formatHook(live, st);
+  assert.ok(out.includes('WIND DOWN'), 'still winds down on stale data');
+  assert.ok(/old/.test(out), 'annotates staleness');
+  // fresh numbers -> no stale note
+  const fresh = { ...live, capturedAt: Date.now() };
+  assert.ok(!/old/.test(meter.formatHook(fresh, st)), 'no stale note when fresh');
+});
+
 // --- version sync -----------------------------------------------------------
 
 test('version is in sync across all manifests + CHANGELOG', () => {

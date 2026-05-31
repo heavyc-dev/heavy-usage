@@ -21,6 +21,12 @@ const STATE_DEFAULTS = {
   // half-width (percentage points) of the "on track" band around linear pace.
   // |used% - elapsed%| within this -> on track; beyond -> early / won't reach.
   paceBandPp: 10,
+  // minutes after which captured usage is considered stale. The statusLine only
+  // refreshes usage-live.json when the UI renders; in a headless/unattended run
+  // it may stop firing while the session keeps prompting, so the hook annotates
+  // its message when the numbers are older than this (it never SUPPRESSES a
+  // wind-down on stale data — overshooting the wall is worse than stopping early).
+  staleMins: 15,
   innerStatusline: null,               // command string chained after heavy-usage's segment
 };
 
@@ -92,6 +98,12 @@ function sanitizePaceBand(b) {
   return Number.isFinite(b) && b > 0 && b <= 100 ? b : STATE_DEFAULTS.paceBandPp;
 }
 
+// Guard the stale window: a finite number of minutes in (0, 1440]. Anything else
+// falls back to the default so the stale check keeps working.
+function sanitizeStaleMins(m) {
+  return Number.isFinite(m) && m > 0 && m <= 1440 ? m : STATE_DEFAULTS.staleMins;
+}
+
 // Resolve the {warn, windDown} pair for a window. weekly=true returns the
 // weekly pair; if a thresholds object lacks weekly fields (an old/partial
 // object, as several tests pass), it falls back to the 5-hour pair so behavior
@@ -111,6 +123,7 @@ function readState() {
       ...p,
       thresholds: sanitizeThresholds({ ...STATE_DEFAULTS.thresholds, ...(p.thresholds || {}) }),
       paceBandPp: sanitizePaceBand(p.paceBandPp),
+      staleMins: sanitizeStaleMins(p.staleMins),
     };
   } catch {
     return { ...STATE_DEFAULTS, thresholds: { ...STATE_DEFAULTS.thresholds } };
@@ -188,6 +201,23 @@ function paceTag(usedPct, resetsAtSec, nowSec, windowSec, bandPp) {
   return { state: 'ontrack', word: '', mag: `±${Math.abs(r)}%` };
 }
 
+// Linear projection from current burn: where usage lands by reset, and (if it
+// will cross 100% before reset) how many seconds until it hits the limit.
+// Returns { endPct, hitsInSec|null } or null when it can't extrapolate yet (no
+// resets_at, or < ~2% of the window elapsed — too early for a stable rate).
+function paceProjection(usedPct, resetsAtSec, nowSec, windowSec) {
+  const e = elapsedFrac(resetsAtSec, nowSec, windowSec);
+  if (e == null || typeof usedPct !== 'number' || e < 0.02) return null;
+  const endPct = Math.round(usedPct / e);            // used% / elapsedFrac = projected end
+  const ratePerSec = usedPct / (windowSec * e);
+  let hitsInSec = null;
+  if (ratePerSec > 0 && usedPct < 100 && resetsAtSec) {
+    const s = (100 - usedPct) / ratePerSec;
+    if (nowSec + s < resetsAtSec) hitsInSec = Math.round(s); // only if it crosses BEFORE reset
+  }
+  return { endPct, hitsInSec };
+}
+
 function bar(frac) {
   if (frac == null) return '—';
   const f = Math.max(0, Math.min(20, Math.round(frac * 20)));
@@ -196,7 +226,7 @@ function bar(frac) {
 
 module.exports = {
   STATE_DEFAULTS, WINDOW_SEC, claudeDir, stateDir, statePath, livePath,
-  atomicWriteJson, validPair, sanitizeThresholds, sanitizePaceBand, thFor, readState, writeState, readLive, writeLive,
+  atomicWriteJson, validPair, sanitizeThresholds, sanitizePaceBand, sanitizeStaleMins, thFor, readState, writeState, readLive, writeLive,
   statusWord, untilStr, clockStr, bar,
-  elapsedFrac, paceDelta, paceTag,
+  elapsedFrac, paceDelta, paceTag, paceProjection,
 };

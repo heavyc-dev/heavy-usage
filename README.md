@@ -35,7 +35,7 @@ Two restarts: first loads the hooks, second activates the statusLine `/usage set
 | `/usage` | Official 5h + weekly usage — % used, status, reset countdown, pace |
 | `/usage setup` | One-time wiring (backs up `settings.json`, chains your existing statusline) |
 | `/usage on` · `/usage off` | Toggle the wind-down hook |
-| `/usage thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>]` | Tune thresholds (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`) and the pace band (`--pace-band <pp>`, default 10) |
+| `/usage thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>] [stale <min>]` | Tune thresholds (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`), the pace band (`--pace-band <pp>`, default 10), and the stale window (`--stale-mins <min>`, default 15) |
 
 ## How it works
 
@@ -47,7 +47,9 @@ A statusLine script captures the official `rate_limits` to `~/.claude/heavy-usag
 
 Fires every turn, so each `/loop` iteration sees fresh numbers and closes out right before the wall.
 
-**Pace.** Next to each %, the status bar and report show how your burn compares to a linear pace for that window (`used% − elapsed%`, derived from the window length + `resets_at`). Within the band (default ±10pp) → **on track** (`±2%`); above → **early** (`early +18%`, you'll hit the limit before reset); below → **won't reach** (`won't reach -22%`). Set the band with `/usage thresholds … pace <pp>`.
+**Pace.** Next to each %, the status bar and report show how your burn compares to a linear pace for that window (`used% − elapsed%`, derived from the window length + `resets_at`). Within the band (default ±10pp) → **on track** (`±2%`); above → **early** (`early +18%`, you'll hit the limit before reset); below → **won't reach** (`won't reach -22%`). Set the band with `/usage thresholds … pace <pp>`. The `/usage` report also **projects** where this burn lands by reset and the ETA to 100% (`→ projects ~130% by reset, hits 100% in 50m`).
+
+**Stale-data guard.** The statusLine refreshes the captured numbers only when the UI renders; in a headless/unattended run it can stop while the session keeps prompting. If the capture is older than the stale window (default 15m), the wind-down hook **annotates** its message so Claude and you know real usage may be higher — it never *suppresses* a wind-down on stale data (overshooting the wall is worse than stopping early). Tune with `/usage thresholds … stale <min>`.
 
 ## Uninstall
 

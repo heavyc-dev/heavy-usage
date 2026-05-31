@@ -1,6 +1,6 @@
 {
   "name": "heavy-usage",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Official Claude Code usage guard + loop wind-down. Pure Node, no deps.",
   "license": "MIT",
   "private": true,
