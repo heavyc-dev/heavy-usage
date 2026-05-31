@@ -4,8 +4,9 @@
 // one is missing for that version. Pure Node, no deps.
 //
 // Run:  node scripts/bump.js 1.2.0
-// Then: review the CHANGELOG stub, commit, tag v1.2.0, push --tags (release.yml
-//       publishes the GitHub release).
+// Then: review the CHANGELOG stub, then commit, tag, push, and publish:
+//       git commit -am "release: vX.Y.Z" && git tag vX.Y.Z && git push --tags
+//       gh release create vX.Y.Z --generate-notes
 
 const fs = require('fs');
 const path = require('path');
