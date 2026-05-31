@@ -42,8 +42,25 @@ function atomicWriteJson(file, obj) {
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`);
   const data = JSON.stringify(obj, null, 2);
   fs.writeFileSync(tmp, data, 'utf8');
-  JSON.parse(fs.readFileSync(tmp, 'utf8')); // parse-check before swap
+  try {
+    JSON.parse(fs.readFileSync(tmp, 'utf8')); // parse-check before swap
+  } catch (e) {
+    try { fs.rmSync(tmp, { force: true }); } catch {} // don't leave an orphan
+    throw e;
+  }
   fs.renameSync(tmp, file);
+}
+
+// Guard against a corrupt or hand-edited state file: thresholds must be finite
+// numbers in [0,1] with warn < windDown. If not, fall back to defaults so the
+// hook keeps working instead of going silent on a NaN/inverted threshold.
+function sanitizeThresholds(th) {
+  const ok = th
+    && Number.isFinite(th.warn) && Number.isFinite(th.windDown)
+    && th.warn >= 0 && th.windDown <= 1 && th.warn < th.windDown;
+  return ok
+    ? { warn: th.warn, windDown: th.windDown }
+    : { ...STATE_DEFAULTS.thresholds };
 }
 
 function readState() {
@@ -52,7 +69,7 @@ function readState() {
     return {
       ...STATE_DEFAULTS,
       ...p,
-      thresholds: { ...STATE_DEFAULTS.thresholds, ...(p.thresholds || {}) },
+      thresholds: sanitizeThresholds({ ...STATE_DEFAULTS.thresholds, ...(p.thresholds || {}) }),
     };
   } catch {
     return { ...STATE_DEFAULTS, thresholds: { ...STATE_DEFAULTS.thresholds } };
@@ -98,6 +115,6 @@ function bar(frac) {
 
 module.exports = {
   STATE_DEFAULTS, claudeDir, stateDir, statePath, livePath,
-  atomicWriteJson, readState, writeState, readLive, writeLive,
+  atomicWriteJson, sanitizeThresholds, readState, writeState, readLive, writeLive,
   statusWord, untilStr, bar,
 };

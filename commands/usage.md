@@ -29,11 +29,10 @@ Scripts (pure Node, run with `node`):
 ## Setup procedure (`/usage setup`)
 Goal: make `~/.claude/settings.json` `statusLine` point at heavy-usage's capturer, **without losing** the user's current statusline.
 
-1. Read `~/.claude/settings.json` (resolve `~` via `$env:USERPROFILE\.claude` on Windows / `$HOME/.claude`). **Back it up** to `<GLOBAL_DIR>/backups/heavy-usage/<UTC-timestamp>/settings.json` before any write (heavy-usage always backs up first).
+1. Read `~/.claude/settings.json` (resolve `~` via `$env:USERPROFILE\.claude` on Windows / `$HOME/.claude`). **Back it up** to `~/.claude/backups/heavy-usage/<UTC-timestamp>/settings.json` before any write (heavy-usage always backs up first).
 2. Inspect the existing `statusLine`:
    - If it already points at heavy-usage's `usage-statusline.js`, report "already wired" and stop.
-   - If another statusLine exists (e.g. the caveman badge script), **preserve it as the chained inner line**: write its existing `command` string into heavy-usage state via
-     `node "...usage-meter.js"` is read-only for state, so set it directly — read `~/.claude/heavy-usage/usage-state.json`, merge `{ "innerStatusline": "<their old command>" }`, and write it back (create the file/dir if absent, strip nothing else).
+   - If another statusLine exists (e.g. the caveman badge script), **preserve it as the chained inner line.** The meter CLI does not write `innerStatusline`, so set it directly: read `~/.claude/heavy-usage/usage-state.json`, merge in `{ "innerStatusline": "<their old command string>" }`, and write it back (create the file/dir if absent; change nothing else).
    - If no statusLine exists, leave `innerStatusline` null.
 3. Set `settings.json` `statusLine` to:
    ```json
@@ -42,7 +41,7 @@ Goal: make `~/.claude/settings.json` `statusLine` point at heavy-usage's capture
    Resolve `${CLAUDE_PLUGIN_ROOT}` to the actual installed plugin path so the setting is portable (statusLine settings don't expand plugin vars — use the concrete absolute path to `usage-statusline.js`).
 4. Show the diff, confirm, write atomically (temp → JSON-parse-check → move).
 5. **Offer the CLAUDE.md wind-down primer** (ask Yes/No — default Yes). The `UserPromptSubmit` hook injects `[heavy-usage]` lines, but they are context, not a hard stop; this primer makes Claude treat WIND DOWN as authoritative so loops reliably close out. If accepted:
-   - Read global `~/.claude/CLAUDE.md` (resolve `~` as above). **Back it up** to the same `backups/heavy-usage/<UTC-timestamp>/` dir.
+   - Read global `~/.claude/CLAUDE.md` (resolve `~` as above). **Back it up** to the same `~/.claude/backups/heavy-usage/<UTC-timestamp>/` dir.
    - **Merge, don't clobber.** If a `## Usage wind-down (heavy-usage)` section already exists, leave it (idempotent — report "already present"). Otherwise append the block below. Create `CLAUDE.md` if absent.
    - Block to append verbatim:
      ```markdown

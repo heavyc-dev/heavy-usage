@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "heavy-usage",
   "displayName": "heavy-usage",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Run Claude Code loops to the edge of your usage limits without losing work. Surfaces your OFFICIAL 5-hour and weekly rate-limit numbers (captured from the statusLine payload) and runs an auto wind-down hook that tells Claude to commit and stop cleanly right before you hit the wall — instead of dying mid-task. /usage shows live % + reset countdown; /usage setup wires it (and chains your existing statusline). Pure Node, no deps.",
   "author": {
     "name": "Heavy C",

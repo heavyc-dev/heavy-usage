@@ -44,6 +44,8 @@ claude plugin install heavy-usage@heavy-usage
 # restart once more
 ```
 
+Two restarts is expected: the first loads the plugin's hooks, and the second activates the statusLine that `/usage setup` just wired (the statusLine is read from `settings.json` at startup).
+
 ## Commands
 
 | Command | Does |
@@ -79,6 +81,16 @@ Lives in `~/.claude/heavy-usage/` (a fixed path so the statusLine capturer, hook
 
 - `usage-live.json` — last captured official numbers
 - `usage-state.json` — `enabled`, `thresholds`, `innerStatusline` (your chained statusline)
+
+## Uninstall / revert
+
+`/usage setup` edits two global files and **backs each up first** to `~/.claude/backups/heavy-usage/<UTC-timestamp>/`. To undo it:
+
+1. **statusLine** — restore `~/.claude/settings.json` from the backup, or just remove (or repoint) its `statusLine` entry. To bring back your previous statusline, copy it from `innerStatusline` in `~/.claude/heavy-usage/usage-state.json`.
+2. **CLAUDE.md primer** — delete the `## Usage wind-down (heavy-usage)` block from `~/.claude/CLAUDE.md` (or restore that file from the backup).
+3. **State** — delete `~/.claude/heavy-usage/` to drop the captured numbers and settings.
+
+Then `claude plugin uninstall heavy-usage@heavy-usage`. (If the plugin is updated and the statusLine ever stops working, the SessionStart check will tell you to re-run `/usage setup`.)
 
 ## Requirements
 

@@ -46,7 +46,16 @@ function ageStr(capturedAtMs) {
 
 function getFlag(args, name) {
   const i = args.indexOf(name);
-  return i !== -1 ? args[i + 1] : null;
+  if (i === -1) return null;
+  const v = args[i + 1];
+  if (v == null || v.startsWith('--')) return null; // missing value or next flag
+  return v;
+}
+
+// fractions: finite, in [0,1], warn strictly below windDown
+function thresholdsOk(warn, windDown) {
+  return Number.isFinite(warn) && Number.isFinite(windDown)
+    && warn >= 0 && windDown <= 1 && warn < windDown;
 }
 
 // --- formatting -------------------------------------------------------------
@@ -111,12 +120,25 @@ function main() {
 
   if (sub === 'thresholds') {
     const state = lib.readState();
-    const warn = getFlag(args, '--warn');
-    const wd = getFlag(args, '--winddown');
-    if (warn != null) state.thresholds.warn = Number(warn);
-    if (wd != null) state.thresholds.windDown = Number(wd);
+    const warnRaw = getFlag(args, '--warn');
+    const wdRaw = getFlag(args, '--winddown');
+    // A flag present without a usable value (e.g. `--warn` at end, or `--warn
+    // --winddown 0.85`) is an error, not a silent no-op.
+    const warnBadValue = args.includes('--warn') && warnRaw === null;
+    const wdBadValue = args.includes('--winddown') && wdRaw === null;
+    const warn = warnRaw != null ? Number(warnRaw) : state.thresholds.warn;
+    const windDown = wdRaw != null ? Number(wdRaw) : state.thresholds.windDown;
+    if (warnBadValue || wdBadValue || !thresholdsOk(warn, windDown)) {
+      process.stderr.write(
+        'Invalid thresholds. Pass fractions 0–1 with warn < wind-down, '
+        + 'e.g. `thresholds --warn 0.7 --winddown 0.85`. State unchanged.\n');
+      process.exitCode = 1;
+      return;
+    }
+    state.thresholds.warn = warn;
+    state.thresholds.windDown = windDown;
     lib.writeState(state);
-    process.stdout.write(`Thresholds — warn ${Math.round(state.thresholds.warn * 100)}%, wind-down ${Math.round(state.thresholds.windDown * 100)}%\n`);
+    process.stdout.write(`Thresholds — warn ${Math.round(warn * 100)}%, wind-down ${Math.round(windDown * 100)}%\n`);
     return;
   }
 
@@ -150,4 +172,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { worst, formatHuman, formatHook, ageStr };
+module.exports = { worst, formatHuman, formatHook, ageStr, getFlag, thresholdsOk };

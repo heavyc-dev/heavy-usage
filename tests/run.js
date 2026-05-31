@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // heavy-usage unit tests — plain Node, no framework. Run: node tests/run.js
-// Exits non-zero on first failure. Uses a throwaway CLAUDE_PLUGIN_DATA dir so
-// no real state is touched.
+// Reports every failure and exits non-zero if any failed. Uses a throwaway
+// CLAUDE_CONFIG_DIR (which relocates the state dir) so no real state is touched.
 
 const assert = require('assert');
 const fs = require('fs');
@@ -170,6 +170,81 @@ test('chainInner empty when no inner command', () => {
   assert.equal(sl.chainInner({ innerStatusline: null }, '{}'), '');
 });
 
+// --- threshold input validation (the silent-NaN guard) ---------------------
+
+test('getFlag returns value, null on missing value or flag-as-value', () => {
+  assert.equal(meter.getFlag(['--warn', '0.7'], '--warn'), '0.7');
+  assert.equal(meter.getFlag(['--warn'], '--warn'), null);                    // missing value
+  assert.equal(meter.getFlag(['--warn', '--winddown', '0.85'], '--warn'), null); // next flag
+  assert.equal(meter.getFlag(['x'], '--warn'), null);                         // absent
+});
+
+test('thresholdsOk rejects NaN / out-of-range / inverted / equal', () => {
+  assert.equal(meter.thresholdsOk(0.7, 0.85), true);
+  assert.equal(meter.thresholdsOk(NaN, 0.85), false);
+  assert.equal(meter.thresholdsOk(0.7, NaN), false);
+  assert.equal(meter.thresholdsOk(-0.1, 0.85), false);
+  assert.equal(meter.thresholdsOk(0.7, 1.5), false);
+  assert.equal(meter.thresholdsOk(0.9, 0.7), false);  // inverted
+  assert.equal(meter.thresholdsOk(0.5, 0.5), false);  // equal
+});
+
+test('sanitizeThresholds keeps valid, replaces invalid', () => {
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.6, windDown: 0.8 }), { warn: 0.6, windDown: 0.8 });
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.9, windDown: 0.7 }), { warn: 0.70, windDown: 0.85 });
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 'x', windDown: 2 }), { warn: 0.70, windDown: 0.85 });
+  assert.deepEqual(lib.sanitizeThresholds(null), { warn: 0.70, windDown: 0.85 });
+});
+
+test('readState sanitizes a corrupt thresholds object on disk', () => {
+  lib.atomicWriteJson(lib.statePath(), { version: 1, enabled: true, thresholds: { warn: 'x', windDown: 2 }, innerStatusline: null });
+  const s = lib.readState();
+  assert.equal(s.thresholds.warn, 0.70);
+  assert.equal(s.thresholds.windDown, 0.85);
+});
+
+test('thresholds CLI rejects bad input, exits non-zero, leaves state unchanged', () => {
+  const { spawnSync } = require('child_process');
+  const before = lib.readState();
+  before.thresholds = { warn: 0.6, windDown: 0.8 };
+  lib.writeState(before);
+  const run = (extra) => spawnSync(process.execPath,
+    [path.join(__dirname, '..', 'scripts', 'usage-meter.js'), 'thresholds', ...extra],
+    { env: { ...process.env, CLAUDE_CONFIG_DIR: TMP }, encoding: 'utf8' });
+  assert.equal(run(['--warn', '0.9', '--winddown', '0.7']).status, 1); // inverted
+  assert.equal(run(['--warn', 'foo']).status, 1);                      // NaN
+  assert.equal(run(['--warn']).status, 1);                             // missing value
+  const after = lib.readState();
+  assert.equal(after.thresholds.warn, 0.6);   // unchanged by the rejected calls
+  assert.equal(after.thresholds.windDown, 0.8);
+  assert.equal(run(['--warn', '0.5', '--winddown', '0.9']).status, 0); // valid
+  assert.equal(lib.readState().thresholds.warn, 0.5);
+});
+
+// --- formatting on partial / missing data -----------------------------------
+
+test('formatHuman renders with data and reports no-data', () => {
+  const th = { warn: 0.70, windDown: 0.85 };
+  const now = Math.floor(Date.now() / 1000);
+  const out = meter.formatHuman(
+    { five_hour: { used_percentage: 24, resets_at: now + 3600 }, seven_day: { used_percentage: 41, resets_at: now + 7200 }, capturedAt: Date.now() },
+    { thresholds: th, enabled: true });
+  assert.ok(out.includes('24%') && out.includes('5-hour'), out);
+  assert.ok(meter.formatHuman(null, { thresholds: th, enabled: true }).includes('No usage data yet'));
+});
+
+test('formatHook tolerates missing resets_at', () => {
+  const out = meter.formatHook({ five_hour: { used_percentage: 90 }, seven_day: null }, { enabled: true, thresholds: TH });
+  assert.ok(out.startsWith('[heavy-usage] WIND DOWN'), out);
+  assert.ok(out.includes('resets in ?'), out);
+});
+
+test('segment tolerates a missing window', () => {
+  const seg = sl.segment({ rate_limits: { five_hour: { used_percentage: 50 }, seven_day: null } }, { thresholds: TH });
+  assert.ok(seg.includes('5h 50%'));
+  assert.ok(!seg.includes('7d'));
+});
+
 // --- usage-session-check ----------------------------------------------------
 
 test('isWired detects our capturer (object + string forms)', () => {
@@ -178,6 +253,13 @@ test('isWired detects our capturer (object + string forms)', () => {
   assert.equal(session.isWired({ statusLine: { command: 'bash caveman-statusline.sh' } }), false);
   assert.equal(session.isWired({ statusLine: { command: 'node "/x/scripts/usage-statusline.js"' } }), true);
   assert.equal(session.isWired({ statusLine: 'node /x/usage-statusline.js' }), true);
+});
+
+test('wiredStatuslinePath extracts the capturer path (quoted + bare)', () => {
+  assert.equal(session.wiredStatuslinePath('node "C:/x/scripts/usage-statusline.js"'), 'C:/x/scripts/usage-statusline.js');
+  assert.equal(session.wiredStatuslinePath('node /home/u/usage-statusline.js'), '/home/u/usage-statusline.js');
+  assert.equal(session.wiredStatuslinePath('bash other.sh'), null);
+  assert.equal(session.wiredStatuslinePath(null), null);
 });
 
 // --- summary ----------------------------------------------------------------

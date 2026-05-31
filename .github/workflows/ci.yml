@@ -7,7 +7,11 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -16,8 +20,7 @@ jobs:
           node-version: 20
 
       - name: Syntax check scripts
-        run: |
-          for f in scripts/*.js; do node --check "$f"; done
+        run: node -e "const fs=require('fs'),cp=require('child_process');for(const f of fs.readdirSync('scripts').filter(f=>f.endsWith('.js')))cp.execFileSync(process.execPath,['--check','scripts/'+f],{stdio:'inherit'});console.log('all scripts ok')"
 
       - name: Unit tests
         run: node tests/run.js
@@ -28,6 +31,6 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8'))"
 
       - name: Validate plugin (best-effort)
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
-        run: |
-          npm i -g @anthropic-ai/claude-code && claude plugin validate .
+        run: npm i -g @anthropic-ai/claude-code && claude plugin validate .
