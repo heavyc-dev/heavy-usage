@@ -1,0 +1,12 @@
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local state / scratch (state normally lives under ~/.claude or CLAUDE_PLUGIN_DATA,
+# never in the repo — this guards against accidental local test output)
+usage-live.json
+usage-state.json
+*.tmp
