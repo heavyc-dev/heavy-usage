@@ -33,7 +33,7 @@ Goal: make `~/.claude/settings.json` `statusLine` point at heavy-usage's capture
 2. Inspect the existing `statusLine`:
    - If it already points at heavy-usage's `usage-statusline.js`, report "already wired" and stop.
    - If another statusLine exists (e.g. the caveman badge script), **preserve it as the chained inner line**: write its existing `command` string into heavy-usage state via
-     `node "...usage-meter.js"` is read-only for state, so set it directly — read `${CLAUDE_PLUGIN_DATA}\usage-state.json` (fallback `~/.claude/heavy-usage/usage-state.json`), merge `{ "innerStatusline": "<their old command>" }`, and write it back (create the file/dir if absent, strip nothing else).
+     `node "...usage-meter.js"` is read-only for state, so set it directly — read `~/.claude/heavy-usage/usage-state.json`, merge `{ "innerStatusline": "<their old command>" }`, and write it back (create the file/dir if absent, strip nothing else).
    - If no statusLine exists, leave `innerStatusline` null.
 3. Set `settings.json` `statusLine` to:
    ```json
@@ -61,7 +61,7 @@ With the hook on (default) the `UserPromptSubmit` hook checks the worst of your 
 - at **warn** → "prefer small steps, commit often",
 - at **wind-down** (default 85%) → firm "stop starting new work, commit, summarize state, end the loop".
 
-Because it fires every prompt, each `/loop` iteration sees fresh official numbers and the loop closes out gracefully right before the wall. State (`enabled`, `thresholds`, `innerStatusline`) lives in `${CLAUDE_PLUGIN_DATA}` (fallback `~/.claude/heavy-usage/usage-state.json`).
+Because it fires every prompt, each `/loop` iteration sees fresh official numbers and the loop closes out gracefully right before the wall. State (`enabled`, `thresholds`, `innerStatusline`) lives in `~/.claude/heavy-usage/usage-state.json` (a fixed path so the statusLine, hook, and command always agree).
 
 ## Honesty note for the user
 These are the **official** figures Claude Code reports (not a token estimate). Caveat: `rate_limits` is provided **only to Claude.ai Pro/Max subscribers** and **only after the first API response** in a session — before that, or on API/console billing, `/usage` will show "no data".

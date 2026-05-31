@@ -75,7 +75,7 @@ No special `/loop` or prompt syntax is required — it works in any session. Unt
 
 ## State
 
-Lives in `${CLAUDE_PLUGIN_DATA}` (fallback `~/.claude/heavy-usage/`), survives `/clear` and new sessions:
+Lives in `~/.claude/heavy-usage/` (a fixed path so the statusLine capturer, hook, and command always read/write the same place), survives `/clear` and new sessions:
 
 - `usage-live.json` — last captured official numbers
 - `usage-state.json` — `enabled`, `thresholds`, `innerStatusline` (your chained statusline)

@@ -9,9 +9,12 @@ const os = require('os');
 const path = require('path');
 
 // Isolate state BEFORE requiring modules that resolve paths lazily (they read
-// process.env on each call, so setting it here is enough).
+// process.env on each call). stateDir() = claudeDir()/heavy-usage, and
+// claudeDir() honors CLAUDE_CONFIG_DIR — so pointing that at a temp dir isolates
+// all state under <TMP>/heavy-usage without touching the real ~/.claude.
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'heavy-usage-test-'));
-process.env.CLAUDE_PLUGIN_DATA = TMP;
+process.env.CLAUDE_CONFIG_DIR = TMP;
+delete process.env.CLAUDE_PLUGIN_DATA;
 
 const lib = require('../scripts/usage-lib');
 const meter = require('../scripts/usage-meter');

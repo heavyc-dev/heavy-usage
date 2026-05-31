@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.1
+- **Fix: state directory was split across two locations.** The statusLine capturer and the hook fall back to `~/.claude/heavy-usage`, but the slash command sometimes ran with `CLAUDE_PLUGIN_DATA` set to `…/plugins/data/…` — so the live capture, the hook's reads, and `/usage setup`'s writes could land in different dirs (symptom: chained statusline/caveman badge dropped, thresholds not what you set). State is now pinned to a fixed path (`~/.claude/heavy-usage/`, honoring `CLAUDE_CONFIG_DIR`); `CLAUDE_PLUGIN_DATA` is no longer used. Tests isolate via `CLAUDE_CONFIG_DIR`.
+
 ## 0.1.0
 - Initial release. Split out from the `heavyc` plugin into a focused, standalone tool.
 - **`/usage`** — official 5-hour and weekly usage (`used_percentage` + `resets_at`), with status bars and reset countdown. Reads the real Claude Code `rate_limits`, not a token estimate.

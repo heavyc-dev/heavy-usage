@@ -22,9 +22,15 @@ function claudeDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 }
 
-// Survives /clear and new sessions. Plugin data dir when provided, else ~/.claude/heavy-usage.
+// Fixed, deterministic state dir. We intentionally DO NOT use CLAUDE_PLUGIN_DATA:
+// the harness sets it in some contexts (the slash command) but not others (the
+// statusLine command and the hook), which would split state across two dirs —
+// the statusLine writes the live file one place while the hook reads another.
+// Pinning to ~/.claude/heavy-usage guarantees the capturer, the reader, and the
+// command all share one location. (CLAUDE_CONFIG_DIR still relocates the whole
+// ~/.claude root, so custom config dirs are honored.)
 function stateDir() {
-  return process.env.CLAUDE_PLUGIN_DATA || path.join(claudeDir(), 'heavy-usage');
+  return path.join(claudeDir(), 'heavy-usage');
 }
 
 function statePath() { return path.join(stateDir(), 'usage-state.json'); }
