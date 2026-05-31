@@ -14,7 +14,10 @@ const os = require('os');
 const STATE_DEFAULTS = {
   version: 1,
   enabled: true,                       // wind-down hook on/off
-  thresholds: { warn: 0.75, windDown: 0.90 }, // fractions of the official 0-1 usage
+  // fractions of the official 0-1 usage. warn/windDown are the 5-hour window;
+  // weeklyWarn/weeklyWindDown are the 7-day window (it moves slower and the
+  // overshoot cost differs, so it gets its own, higher pair by default).
+  thresholds: { warn: 0.75, windDown: 0.90, weeklyWarn: 0.85, weeklyWindDown: 0.95 },
   innerStatusline: null,               // command string chained after heavy-usage's segment
 };
 
@@ -51,16 +54,40 @@ function atomicWriteJson(file, obj) {
   fs.renameSync(tmp, file);
 }
 
-// Guard against a corrupt or hand-edited state file: thresholds must be finite
-// numbers in [0,1] with warn < windDown. If not, fall back to defaults so the
-// hook keeps working instead of going silent on a NaN/inverted threshold.
+// A valid pair is finite numbers in [0,1] with warn < windDown.
+function validPair(warn, windDown) {
+  return Number.isFinite(warn) && Number.isFinite(windDown)
+    && warn >= 0 && windDown <= 1 && warn < windDown;
+}
+
+// Guard against a corrupt or hand-edited state file. Each window's pair is
+// validated independently and falls back to its own default if bad, so the hook
+// keeps working instead of going silent on a NaN/inverted threshold. A file
+// that predates weekly thresholds (only warn/windDown) gets weekly defaults.
 function sanitizeThresholds(th) {
-  const ok = th
-    && Number.isFinite(th.warn) && Number.isFinite(th.windDown)
-    && th.warn >= 0 && th.windDown <= 1 && th.warn < th.windDown;
-  return ok
+  const d = STATE_DEFAULTS.thresholds;
+  th = th || {};
+  const five = validPair(th.warn, th.windDown)
     ? { warn: th.warn, windDown: th.windDown }
-    : { ...STATE_DEFAULTS.thresholds };
+    : { warn: d.warn, windDown: d.windDown };
+  const weekly = validPair(th.weeklyWarn, th.weeklyWindDown)
+    ? { warn: th.weeklyWarn, windDown: th.weeklyWindDown }
+    : { warn: d.weeklyWarn, windDown: d.weeklyWindDown };
+  return {
+    warn: five.warn, windDown: five.windDown,
+    weeklyWarn: weekly.warn, weeklyWindDown: weekly.windDown,
+  };
+}
+
+// Resolve the {warn, windDown} pair for a window. weekly=true returns the
+// weekly pair; if a thresholds object lacks weekly fields (an old/partial
+// object, as several tests pass), it falls back to the 5-hour pair so behavior
+// is unchanged.
+function thFor(th, weekly) {
+  if (weekly && Number.isFinite(th.weeklyWarn) && Number.isFinite(th.weeklyWindDown)) {
+    return { warn: th.weeklyWarn, windDown: th.weeklyWindDown };
+  }
+  return { warn: th.warn, windDown: th.windDown };
 }
 
 function readState() {
@@ -115,6 +142,6 @@ function bar(frac) {
 
 module.exports = {
   STATE_DEFAULTS, claudeDir, stateDir, statePath, livePath,
-  atomicWriteJson, sanitizeThresholds, readState, writeState, readLive, writeLive,
+  atomicWriteJson, validPair, sanitizeThresholds, thFor, readState, writeState, readLive, writeLive,
   statusWord, untilStr, bar,
 };

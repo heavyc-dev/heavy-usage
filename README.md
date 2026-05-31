@@ -35,15 +35,15 @@ Two restarts: first loads the hooks, second activates the statusLine `/usage set
 | `/usage` | Official 5h + weekly usage — % used, status, reset countdown |
 | `/usage setup` | One-time wiring (backs up `settings.json`, chains your existing statusline) |
 | `/usage on` · `/usage off` | Toggle the wind-down hook |
-| `/usage thresholds <warn> <winddown>` | Tune thresholds (fractions; defaults `0.75 0.90`) |
+| `/usage thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>]` | Tune thresholds (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`) |
 
 ## How it works
 
-A statusLine script captures the official `rate_limits` to `~/.claude/heavy-usage/usage-live.json` (and chains your existing statusline, so you lose nothing). A `UserPromptSubmit` hook reads it each turn:
+A statusLine script captures the official `rate_limits` to `~/.claude/heavy-usage/usage-live.json` (and chains your existing statusline, so you lose nothing). A `UserPromptSubmit` hook reads it each turn. The **5-hour** and **weekly** windows have **separate thresholds** (defaults 5h warn/wind-down `75/90`, weekly `85/95`); each window is judged against its own pair and the most severe band wins (ties → 5-hour, since it resets sooner):
 
-- **below warn (75%)** — silent.
-- **warn band (75–90%)** — status only: asks Claude to append a one-line usage footer (`🔋 5-hour 78% · resets in 2h30m`) so you see it in the reply. Does **not** change how Claude works.
-- **at wind-down (90%)** — authoritative `[heavy-usage] WIND DOWN`: stop new work, commit, write a resume note, end the loop.
+- **below warn** — silent.
+- **warn band** — status only: asks Claude to append a one-line usage footer (`🔋 5-hour 78% · resets in 2h30m`) so you see it in the reply. Does **not** change how Claude works.
+- **at wind-down** — authoritative `[heavy-usage] WIND DOWN`: stop new work, commit, write a resume note, end the loop.
 
 Fires every turn, so each `/loop` iteration sees fresh numbers and closes out right before the wall.
 

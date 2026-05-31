@@ -192,11 +192,49 @@ test('thresholdsOk rejects NaN / out-of-range / inverted / equal', () => {
   assert.equal(meter.thresholdsOk(0.5, 0.5), false);  // equal
 });
 
-test('sanitizeThresholds keeps valid, replaces invalid', () => {
-  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.6, windDown: 0.8 }), { warn: 0.6, windDown: 0.8 });
-  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.9, windDown: 0.7 }), { warn: 0.75, windDown: 0.90 });
-  assert.deepEqual(lib.sanitizeThresholds({ warn: 'x', windDown: 2 }), { warn: 0.75, windDown: 0.90 });
-  assert.deepEqual(lib.sanitizeThresholds(null), { warn: 0.75, windDown: 0.90 });
+const DEF = { warn: 0.75, windDown: 0.90, weeklyWarn: 0.85, weeklyWindDown: 0.95 };
+
+test('sanitizeThresholds keeps valid, replaces invalid, fills weekly', () => {
+  // old/partial object (no weekly fields) -> weekly defaults applied
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.6, windDown: 0.8 }),
+    { warn: 0.6, windDown: 0.8, weeklyWarn: 0.85, weeklyWindDown: 0.95 });
+  // full custom object preserved
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.6, windDown: 0.8, weeklyWarn: 0.7, weeklyWindDown: 0.9 }),
+    { warn: 0.6, windDown: 0.8, weeklyWarn: 0.7, weeklyWindDown: 0.9 });
+  // each window's bad pair falls back independently
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.9, windDown: 0.7, weeklyWarn: 0.7, weeklyWindDown: 0.9 }),
+    { warn: 0.75, windDown: 0.90, weeklyWarn: 0.7, weeklyWindDown: 0.9 });
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.6, windDown: 0.8, weeklyWarn: 0.95, weeklyWindDown: 0.7 }),
+    { warn: 0.6, windDown: 0.8, weeklyWarn: 0.85, weeklyWindDown: 0.95 });
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 'x', windDown: 2 }), DEF);
+  assert.deepEqual(lib.sanitizeThresholds(null), DEF);
+});
+
+test('thFor resolves per-window pair, falls back to 5h when weekly absent', () => {
+  assert.deepEqual(lib.thFor(DEF, false), { warn: 0.75, windDown: 0.90 });
+  assert.deepEqual(lib.thFor(DEF, true), { warn: 0.85, windDown: 0.95 });
+  // partial object: weekly falls back to the 5h pair
+  assert.deepEqual(lib.thFor({ warn: 0.6, windDown: 0.8 }, true), { warn: 0.6, windDown: 0.8 });
+});
+
+test('formatHook applies separate weekly thresholds', () => {
+  const soon = Math.floor(Date.now()/1000)+60;
+  // weekly at 88% with weekly warn 85/wd 95 -> WARN band (5h quiet at 50%)
+  const out = meter.formatHook(
+    { five_hour: { used_percentage: 50, resets_at: soon }, seven_day: { used_percentage: 88, resets_at: soon } },
+    { enabled: true, thresholds: DEF });
+  assert.ok(out.includes('FYI') && out.includes('weekly') && out.includes('88%'), out);
+  // weekly at 96% -> WIND DOWN
+  const out2 = meter.formatHook(
+    { five_hour: { used_percentage: 50, resets_at: soon }, seven_day: { used_percentage: 96, resets_at: soon } },
+    { enabled: true, thresholds: DEF });
+  assert.ok(out2.startsWith('[heavy-usage] WIND DOWN') && out2.includes('weekly'), out2);
+  // weekly at 88% would be WIND DOWN under the OLD shared 90 wd? no — proves separation:
+  // 5h at 88% (5h wd 90) is only WARN, weekly at 88% (weekly wd 95) is only WARN too.
+  const out3 = meter.formatHook(
+    { five_hour: { used_percentage: 92, resets_at: soon }, seven_day: { used_percentage: 88, resets_at: soon } },
+    { enabled: true, thresholds: DEF });
+  assert.ok(out3.startsWith('[heavy-usage] WIND DOWN') && out3.includes('5-hour'), out3); // 5h wins
 });
 
 test('readState sanitizes a corrupt thresholds object on disk', () => {
@@ -222,6 +260,26 @@ test('thresholds CLI rejects bad input, exits non-zero, leaves state unchanged',
   assert.equal(after.thresholds.windDown, 0.8);
   assert.equal(run(['--warn', '0.5', '--winddown', '0.9']).status, 0); // valid
   assert.equal(lib.readState().thresholds.warn, 0.5);
+});
+
+test('thresholds CLI sets weekly pair independently, validates it', () => {
+  const { spawnSync } = require('child_process');
+  const before = lib.readState();
+  before.thresholds = { warn: 0.6, windDown: 0.8, weeklyWarn: 0.85, weeklyWindDown: 0.95 };
+  lib.writeState(before);
+  const run = (extra) => spawnSync(process.execPath,
+    [path.join(__dirname, '..', 'scripts', 'usage-meter.js'), 'thresholds', ...extra],
+    { env: { ...process.env, CLAUDE_CONFIG_DIR: TMP }, encoding: 'utf8' });
+  // inverted weekly pair rejected, state unchanged
+  assert.equal(run(['--weekly-warn', '0.95', '--weekly-winddown', '0.85']).status, 1);
+  assert.equal(lib.readState().thresholds.weeklyWarn, 0.85);
+  // valid weekly update, 5h left alone
+  assert.equal(run(['--weekly-warn', '0.8', '--weekly-winddown', '0.92']).status, 0);
+  const s = lib.readState();
+  assert.equal(s.thresholds.weeklyWarn, 0.8);
+  assert.equal(s.thresholds.weeklyWindDown, 0.92);
+  assert.equal(s.thresholds.warn, 0.6);   // untouched
+  assert.equal(s.thresholds.windDown, 0.8);
 });
 
 // --- formatting on partial / missing data -----------------------------------

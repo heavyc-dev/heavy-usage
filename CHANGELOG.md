@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.5
+- **Separate thresholds for the weekly window.** The 5-hour and 7-day windows are now judged against their own warn/wind-down pairs instead of one shared pair. Defaults: 5h `75% / 90%` (unchanged), weekly `85% / 95%`. Each window is evaluated independently and the most severe band drives the hook (ties go to 5-hour, which resets sooner). Set them with `/usage thresholds <warn> <winddown> <weeklyWarn> <weeklyWinddown>` (weekly pair optional; CLI flags `--weekly-warn` / `--weekly-winddown`). State files predating this migrate cleanly — a file with only `warn`/`windDown` gets the weekly defaults, and the statusLine colors + `/usage` report now reflect each window's own thresholds.
+
 ## 0.1.4
 - **WARN band no longer steers Claude's work; it's now a status-only FYI.** The `UserPromptSubmit` hook used to nudge Claude toward smaller steps / more commits the moment usage crossed the *warn* threshold (75%) — before any real limit pressure. The warn band now injects only a non-behavioral line asking Claude to append a one-line usage footer (`🔋 <window> <pct>% · resets in <t>`) so the user sees current usage and reset time in the reply. Behavior changes only at *wind-down* (90%), unchanged. Below warn: fully silent.
 - **README trimmed** to a concise what / use-cases / install / commands / how-it-works reference.

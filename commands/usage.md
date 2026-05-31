@@ -1,6 +1,6 @@
 ---
 description: Show your OFFICIAL Claude Code usage (5-hour + weekly rate limits, % used and reset time) and drive an auto wind-down hook that tells Claude to commit and stop cleanly before you hit a limit — built for long/unattended loops. Subcommands — setup, on/off, thresholds.
-argument-hint: "[setup] | [on|off] | [thresholds <warn> <winddown>]"
+argument-hint: "[setup] | [on|off] | [thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>]]"
 disable-model-invocation: true
 ---
 
@@ -23,7 +23,7 @@ Scripts (pure Node, run with `node`):
 |---|---|
 | *(empty)* | `node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-meter.js"` — print the report verbatim, then one plain-language line |
 | `on` / `off` | `node "...usage-meter.js" enable` / `disable` — toggle the auto wind-down hook |
-| `thresholds <warn> <winddown>` | `node "...usage-meter.js" thresholds --warn <warn> --winddown <winddown>` (fractions, e.g. `0.75 0.90`) |
+| `thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>]` | `node "...usage-meter.js" thresholds --warn <warn> --winddown <winddown>` and, if the user also gave weekly values, append `--weekly-warn <weeklyWarn> --weekly-winddown <weeklyWinddown>` (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`). The 5-hour and weekly windows are evaluated against their own pairs. |
 | `setup` | Wire the statusLine — follow the **Setup** procedure below |
 
 ## Setup procedure (`/usage setup`)

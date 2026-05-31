@@ -60,6 +60,16 @@ function thresholdsOk(warn, windDown) {
 
 // --- formatting -------------------------------------------------------------
 
+// One-line threshold summary for the report footer.
+function thresholdLine(state) {
+  const t = state.thresholds;
+  const five = lib.thFor(t, false);
+  const wk = lib.thFor(t, true);
+  const pct = (n) => `${Math.round(n * 100)}%`;
+  return `Hook ${state.enabled ? 'ON' : 'OFF'} · 5h warn ${pct(five.warn)}/wind-down ${pct(five.windDown)}`
+    + ` · weekly warn ${pct(wk.warn)}/wind-down ${pct(wk.windDown)}`;
+}
+
 function formatHuman(live, state) {
   const th = state.thresholds;
   const sep = '──────────────────────────────────────────';
@@ -73,49 +83,65 @@ function formatHuman(live, state) {
     L.push('  and only after the first API response in a session.');
     L.push('• Make sure the heavy-usage statusLine is active: run `/usage setup`.');
     L.push(sep);
-    L.push(`Hook ${state.enabled ? 'ON' : 'OFF'} · warn ${Math.round(th.warn * 100)}% · wind-down ${Math.round(th.windDown * 100)}%`);
+    L.push(thresholdLine(state));
     L.push('');
     return L.join('\n');
   }
   const now = nowSec();
-  const row = (label, w) => {
+  const row = (label, w, weekly) => {
     if (!w || typeof w.used_percentage !== 'number') {
       L.push(`${label}   —   no data`);
       return;
     }
     const frac = w.used_percentage / 100;
-    L.push(`${label}   ${lib.bar(frac)} ${Math.round(w.used_percentage)}%   ${lib.statusWord(frac, th)}`);
+    L.push(`${label}   ${lib.bar(frac)} ${Math.round(w.used_percentage)}%   ${lib.statusWord(frac, lib.thFor(th, weekly))}`);
     L.push(`         resets in ${lib.untilStr(w.resets_at, now)}`);
   };
-  row('5-hour', live.five_hour);
-  row('Weekly', live.seven_day);
+  row('5-hour', live.five_hour, false);
+  row('Weekly', live.seven_day, true);
   L.push(sep);
-  L.push(`Hook ${state.enabled ? 'ON' : 'OFF'} · warn ${Math.round(th.warn * 100)}% · wind-down ${Math.round(th.windDown * 100)}% · updated ${ageStr(live.capturedAt)}`);
+  L.push(`${thresholdLine(state)} · updated ${ageStr(live.capturedAt)}`);
   L.push('Official figures Claude Code reported to the status bar (this session).');
   L.push('');
   return L.join('\n');
 }
 
+// Evaluate each window against ITS OWN thresholds and return the most severe
+// band: 2 = wind-down, 1 = warn, 0 = below warn. On a tie the 5-hour window
+// wins (it resets sooner, so naming it is the more actionable message).
+function topSignal(live, th) {
+  if (!live) return null;
+  const wins = [
+    { which: '5-hour', w: live.five_hour, t: lib.thFor(th, false) },
+    { which: 'weekly', w: live.seven_day, t: lib.thFor(th, true) },
+  ];
+  let best = null;
+  for (const x of wins) {
+    const frac = x.w && typeof x.w.used_percentage === 'number' ? x.w.used_percentage / 100 : null;
+    if (frac == null) continue;
+    const band = frac >= x.t.windDown ? 2 : (frac >= x.t.warn ? 1 : 0);
+    if (!best || band > best.band) best = { band, frac, which: x.which, window: x.w };
+  }
+  return best;
+}
+
 function formatHook(live, state) {
   if (!state.enabled) return '';
-  const w = worst(live);
-  if (!w || w.frac == null) return '';
-  const th = state.thresholds;
-  // Below warn: fully silent.
-  if (w.frac < th.warn) return '';
-  const pctNum = Math.round(w.frac * 100);
-  const resets = lib.untilStr(w.window && w.window.resets_at, nowSec());
+  const s = topSignal(live, state.thresholds);
+  if (!s || s.band === 0) return '';
+  const pctNum = Math.round(s.frac * 100);
+  const resets = lib.untilStr(s.window && s.window.resets_at, nowSec());
   // WARN band: a status-only FYI. It must NOT steer how Claude works (no
   // "smaller steps", no "commit more") — it only asks Claude to surface the
   // current numbers to the user as a one-line footer.
-  if (w.frac < th.windDown) {
+  if (s.band === 1) {
     return `[heavy-usage] FYI for the user (does not change how you work): `
-      + `${w.which} usage ${pctNum}%, resets in ${resets}. `
+      + `${s.which} usage ${pctNum}%, resets in ${resets}. `
       + `End your reply with exactly this line and nothing else added:\n`
-      + `> 🔋 ${w.which} ${pctNum}% · resets in ${resets}`;
+      + `> 🔋 ${s.which} ${pctNum}% · resets in ${resets}`;
   }
   // Wind-down: the one signal that does change behavior.
-  return `[heavy-usage] WIND DOWN — official ${w.which} usage is ${pctNum}% (resets in ${resets}). `
+  return `[heavy-usage] WIND DOWN — official ${s.which} usage is ${pctNum}% (resets in ${resets}). `
     + `Do not start new work. Finish the current step, commit what is done, write a brief state summary, then stop the loop.`;
 }
 
@@ -127,25 +153,37 @@ function main() {
 
   if (sub === 'thresholds') {
     const state = lib.readState();
-    const warnRaw = getFlag(args, '--warn');
-    const wdRaw = getFlag(args, '--winddown');
+    // 5-hour flags: --warn/--winddown. Weekly flags: --weekly-warn/--weekly-winddown.
     // A flag present without a usable value (e.g. `--warn` at end, or `--warn
     // --winddown 0.85`) is an error, not a silent no-op.
-    const warnBadValue = args.includes('--warn') && warnRaw === null;
-    const wdBadValue = args.includes('--winddown') && wdRaw === null;
-    const warn = warnRaw != null ? Number(warnRaw) : state.thresholds.warn;
-    const windDown = wdRaw != null ? Number(wdRaw) : state.thresholds.windDown;
-    if (warnBadValue || wdBadValue || !thresholdsOk(warn, windDown)) {
+    const readPair = (warnFlag, wdFlag, cur) => {
+      const warnRaw = getFlag(args, warnFlag);
+      const wdRaw = getFlag(args, wdFlag);
+      const badValue = (args.includes(warnFlag) && warnRaw === null)
+        || (args.includes(wdFlag) && wdRaw === null);
+      const warn = warnRaw != null ? Number(warnRaw) : cur.warn;
+      const windDown = wdRaw != null ? Number(wdRaw) : cur.windDown;
+      return { warn, windDown, ok: !badValue && thresholdsOk(warn, windDown) };
+    };
+    const five = readPair('--warn', '--winddown', lib.thFor(state.thresholds, false));
+    const weekly = readPair('--weekly-warn', '--weekly-winddown', lib.thFor(state.thresholds, true));
+    if (!five.ok || !weekly.ok) {
       process.stderr.write(
         'Invalid thresholds. Pass fractions 0–1 with warn < wind-down, '
-        + 'e.g. `thresholds --warn 0.75 --winddown 0.90`. State unchanged.\n');
+        + 'e.g. `thresholds --warn 0.75 --winddown 0.90 --weekly-warn 0.85 --weekly-winddown 0.95`. '
+        + 'State unchanged.\n');
       process.exitCode = 1;
       return;
     }
-    state.thresholds.warn = warn;
-    state.thresholds.windDown = windDown;
+    state.thresholds.warn = five.warn;
+    state.thresholds.windDown = five.windDown;
+    state.thresholds.weeklyWarn = weekly.warn;
+    state.thresholds.weeklyWindDown = weekly.windDown;
     lib.writeState(state);
-    process.stdout.write(`Thresholds — warn ${Math.round(warn * 100)}%, wind-down ${Math.round(windDown * 100)}%\n`);
+    const pct = (n) => `${Math.round(n * 100)}%`;
+    process.stdout.write(
+      `Thresholds — 5h warn ${pct(five.warn)}/wind-down ${pct(five.windDown)}, `
+      + `weekly warn ${pct(weekly.warn)}/wind-down ${pct(weekly.windDown)}\n`);
     return;
   }
 

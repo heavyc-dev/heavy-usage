@@ -38,14 +38,15 @@ function segment(payload, state) {
   const rl = payload && payload.rate_limits;
   if (!rl) return ''; // API users / pre-first-response: render nothing extra
   const th = state.thresholds;
-  const part = (label, w) => {
+  const part = (label, w, weekly) => {
     if (!w || typeof w.used_percentage !== 'number') return null;
     const frac = w.used_percentage / 100;
+    const t = lib.thFor(th, weekly);
     // ansi: green <warn, yellow <winddown, red >=winddown
-    const color = frac >= th.windDown ? 196 : (frac >= th.warn ? 178 : 71);
+    const color = frac >= t.windDown ? 196 : (frac >= t.warn ? 178 : 71);
     return `[38;5;${color}m${label} ${Math.round(w.used_percentage)}%[0m`;
   };
-  const segs = [part('5h', rl.five_hour), part('7d', rl.seven_day)].filter(Boolean);
+  const segs = [part('5h', rl.five_hour, false), part('7d', rl.seven_day, true)].filter(Boolean);
   return segs.join(' · ');
 }
 
