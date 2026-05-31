@@ -426,6 +426,21 @@ test('wiredStatuslinePath extracts the capturer path (quoted + bare)', () => {
   assert.equal(session.wiredStatuslinePath(null), null);
 });
 
+// --- version sync -----------------------------------------------------------
+
+test('version is in sync across all manifests + CHANGELOG', () => {
+  const { sources, ref, mismatches } = require('../scripts/check-version-sync').collect();
+  assert.ok(ref, 'package.json version missing');
+  assert.deepEqual(mismatches, [], `version mismatch: ${JSON.stringify(sources)}`);
+});
+
+test('checkTag matches stripped tag and flags mismatch', () => {
+  const { checkTag } = require('../scripts/check-version-sync');
+  assert.equal(checkTag('1.2.3', 'v1.2.3'), null);
+  assert.equal(checkTag('1.2.3', '1.2.3'), null);
+  assert.ok(checkTag('1.2.3', 'v9.9.9'));
+});
+
 // --- summary ----------------------------------------------------------------
 
 fs.rmSync(TMP, { recursive: true, force: true });

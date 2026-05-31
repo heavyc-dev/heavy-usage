@@ -56,7 +56,22 @@ Fires every turn, so each `/loop` iteration sees fresh numbers and closes out ri
 ## Development
 
 ```sh
-node tests/run.js   # unit tests, no framework — needs Node (no npm deps)
+node tests/run.js                # unit tests, no framework — needs Node (no npm deps)
+node scripts/check-version-sync.js   # assert version matches across all manifests + CHANGELOG
 ```
+
+CI runs both on every push/PR (Ubuntu/Windows/macOS) plus `claude plugin validate`.
+
+### Releasing
+
+Version lives in `package.json`, `plugin.json`, `marketplace.json`, and the top `CHANGELOG.md` heading — kept in sync by one command:
+
+```sh
+node scripts/bump.js 1.2.0       # writes all four (CHANGELOG gets a stub to edit)
+git commit -am "release: v1.2.0"
+git tag v1.2.0 && git push && git push --tags
+```
+
+The tag push triggers `.github/workflows/release.yml`, which re-checks the tag matches the manifests, runs the tests, and publishes the GitHub release with auto-generated notes.
 
 MIT

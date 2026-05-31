@@ -1,0 +1,13 @@
+{
+  "name": "heavy-usage",
+  "version": "1.1.0",
+  "description": "Official Claude Code usage guard + loop wind-down. Pure Node, no deps.",
+  "license": "MIT",
+  "private": true,
+  "homepage": "https://github.com/heavyc-dev/heavy-usage",
+  "scripts": {
+    "test": "node tests/run.js",
+    "check-version": "node scripts/check-version-sync.js",
+    "bump": "node scripts/bump.js"
+  }
+}
