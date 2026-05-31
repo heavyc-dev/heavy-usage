@@ -16,6 +16,7 @@ process.env.CLAUDE_PLUGIN_DATA = TMP;
 const lib = require('../scripts/usage-lib');
 const meter = require('../scripts/usage-meter');
 const sl = require('../scripts/usage-statusline');
+const session = require('../scripts/usage-session-check');
 
 let passed = 0;
 function test(name, fn) {
@@ -164,6 +165,16 @@ test('segment renders 5h/7d, empty without rate_limits', () => {
 
 test('chainInner empty when no inner command', () => {
   assert.equal(sl.chainInner({ innerStatusline: null }, '{}'), '');
+});
+
+// --- usage-session-check ----------------------------------------------------
+
+test('isWired detects our capturer (object + string forms)', () => {
+  assert.equal(session.isWired(null), false);
+  assert.equal(session.isWired({}), false);
+  assert.equal(session.isWired({ statusLine: { command: 'bash caveman-statusline.sh' } }), false);
+  assert.equal(session.isWired({ statusLine: { command: 'node "/x/scripts/usage-statusline.js"' } }), true);
+  assert.equal(session.isWired({ statusLine: 'node /x/usage-statusline.js' }), true);
 });
 
 // --- summary ----------------------------------------------------------------

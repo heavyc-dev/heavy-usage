@@ -65,7 +65,7 @@ While the hook is on (default), each turn it checks the worst of your two window
 
 Because it fires on every prompt, each `/loop` iteration sees fresh official numbers, and the loop closes out gracefully right before the wall. The optional `CLAUDE.md` primer (added in `/usage setup`) makes Claude treat the `[heavy-usage] WIND DOWN` line as an authoritative stop rather than an FYI.
 
-No special `/loop` or prompt syntax is required — it works in any session.
+No special `/loop` or prompt syntax is required — it works in any session. Until you run `/usage setup`, a brief SessionStart reminder shows that tracking is inactive; it goes silent once wired.
 
 ## Honest limitations
 

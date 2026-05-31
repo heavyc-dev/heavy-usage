@@ -7,5 +7,6 @@
 - **statusLine capturer** (`scripts/usage-statusline.js`) — captures `rate_limits` to `usage-live.json` and renders a compact, color-escalating `5h % · 7d %` segment.
 - **Auto wind-down hook** — `UserPromptSubmit` runs `scripts/usage-meter.js --hook` each turn: silent below 70%, warns at 70%, and at 85% instructs Claude to commit, summarize, and end the loop so unattended runs close out gracefully.
 - `/usage on|off` and `/usage thresholds` to control the hook.
-- Pure Node, no dependencies (`scripts/usage-lib.js` shared). Unit tests in `tests/run.js`.
+- **SessionStart reminder** — if the statusLine isn't wired yet, a one-line nudge to run `/usage setup`; silent once configured.
+- Pure Node, no dependencies (`scripts/usage-lib.js` shared). 21 unit tests in `tests/run.js`; GitHub Actions CI (`.github/workflows/ci.yml`) runs syntax check + tests + manifest validation.
 - Documented caveat: `rate_limits` is Pro/Max-only and appears only after the first API response in a session ([claude-code#44328](https://github.com/anthropics/claude-code/issues/44328), [#23975](https://github.com/anthropics/claude-code/issues/23975)).
