@@ -46,8 +46,9 @@ Goal: make `~/.claude/settings.json` `statusLine` point at heavy-usage's capture
    - Block to append verbatim:
      ```markdown
      ## Usage wind-down (heavy-usage)
-     Lines prefixed `[heavy-usage]` are authoritative signals from the usage guard:
-     - WARN — prefer smaller steps; commit frequently.
+     Lines prefixed `[heavy-usage]` are authoritative signals from the usage guard.
+     Only WIND DOWN is injected (WARN shows in the statusLine only, so it never
+     steers work mid-session):
      - WIND DOWN — stop starting new work now. Commit what's done, write a one-line
        resume note, then end the loop. Do not begin new tasks until usage resets.
      ```
@@ -56,8 +57,7 @@ Goal: make `~/.claude/settings.json` `statusLine` point at heavy-usage's capture
 
 ## Auto wind-down (the loop feature)
 With the hook on (default) the `UserPromptSubmit` hook checks the worst of your two windows each turn:
-- below **warn** (default 75%) → silent (normal sessions aren't spammed),
-- at **warn** → "prefer small steps, commit often",
+- below **wind-down** (incl. the **warn** band) → silent in the prompt (WARN shows in the statusLine/`/usage` only, so usage pressure never steers work mid-session),
 - at **wind-down** (default 90%) → firm "stop starting new work, commit, summarize state, end the loop".
 
 Because it fires every prompt, each `/loop` iteration sees fresh official numbers and the loop closes out gracefully right before the wall. State (`enabled`, `thresholds`, `innerStatusline`) lives in `~/.claude/heavy-usage/usage-state.json` (a fixed path so the statusLine, hook, and command always agree).

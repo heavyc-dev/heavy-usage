@@ -61,8 +61,7 @@ While the hook is on (default), each turn it checks the worst of your two window
 
 | Usage | Behavior |
 |-------|----------|
-| below **75%** (warn) | silent — normal sessions are never spammed |
-| **75%** | "prefer small steps, commit often" |
+| below **90%** (incl. the warn band) | silent in the prompt — WARN shows in the statusLine/`/usage` only, so usage pressure never steers work mid-session |
 | **90%** (wind-down) | "stop starting new work, commit, write a resume note, end the loop" |
 
 Because it fires on every prompt, each `/loop` iteration sees fresh official numbers, and the loop closes out gracefully right before the wall. The optional `CLAUDE.md` primer (added in `/usage setup`) makes Claude treat the `[heavy-usage] WIND DOWN` line as an authoritative stop rather than an FYI.

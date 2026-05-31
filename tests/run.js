@@ -115,11 +115,10 @@ test('formatHook silent below warn', () => {
   assert.equal(meter.formatHook(live, { enabled: true, thresholds: TH }), '');
 });
 
-test('formatHook WARN band', () => {
+test('formatHook silent in WARN band (does not steer mid-session work)', () => {
   const live = { five_hour: { used_percentage: 75, resets_at: Math.floor(Date.now()/1000)+60 }, seven_day: null };
   const out = meter.formatHook(live, { enabled: true, thresholds: TH });
-  assert.ok(out.startsWith('[heavy-usage] WARN'), out);
-  assert.ok(out.includes('75%'));
+  assert.equal(out, '');
 });
 
 test('formatHook WIND DOWN band', () => {
