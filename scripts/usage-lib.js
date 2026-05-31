@@ -123,6 +123,13 @@ function statusWord(frac, th) {
   return 'OK';
 }
 
+// epoch seconds -> local wall-clock "HH:MM" (24h). '' if no value.
+function clockStr(resetsAtSec) {
+  if (!resetsAtSec) return '';
+  const d = new Date(resetsAtSec * 1000);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 // seconds until epoch -> "2h 14m" / "8m" / "now"
 function untilStr(resetsAtSec, nowSec) {
   if (!resetsAtSec) return '?';
@@ -143,5 +150,5 @@ function bar(frac) {
 module.exports = {
   STATE_DEFAULTS, claudeDir, stateDir, statePath, livePath,
   atomicWriteJson, validPair, sanitizeThresholds, thFor, readState, writeState, readLive, writeLive,
-  statusWord, untilStr, bar,
+  statusWord, untilStr, clockStr, bar,
 };

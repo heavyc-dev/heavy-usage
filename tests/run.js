@@ -291,7 +291,23 @@ test('formatHuman renders with data and reports no-data', () => {
     { five_hour: { used_percentage: 24, resets_at: now + 3600 }, seven_day: { used_percentage: 41, resets_at: now + 7200 }, capturedAt: Date.now() },
     { thresholds: th, enabled: true });
   assert.ok(out.includes('24%') && out.includes('5-hour'), out);
+  // absolute reset clock shown next to the relative countdown
+  assert.match(out, /resets in .+ \(\d\d:\d\d\)/);
   assert.ok(meter.formatHuman(null, { thresholds: th, enabled: true }).includes('No usage data yet'));
+});
+
+test('clockStr formats local HH:MM, empty without value', () => {
+  assert.equal(lib.clockStr(0), '');
+  assert.equal(lib.clockStr(null), '');
+  assert.match(lib.clockStr(1780203000), /^\d\d:\d\d$/);
+});
+
+test('segment appends reset countdown only when a window is hot', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const cool = sl.segment({ rate_limits: { five_hour: { used_percentage: 40, resets_at: now + 3600 } } }, { thresholds: TH });
+  assert.ok(!cool.includes('1h 0m'), cool); // below warn -> no countdown
+  const hot = sl.segment({ rate_limits: { five_hour: { used_percentage: 95, resets_at: now + 3600 } } }, { thresholds: TH });
+  assert.ok(hot.includes('1h 0m'), hot);    // wind-down -> countdown appended
 });
 
 test('formatHook tolerates missing resets_at', () => {

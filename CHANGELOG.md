@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.6
+- **Display polish.** The `/usage` report now shows the **absolute reset clock** next to the relative countdown (`resets in 1h 15m (00:50)`) so you can plan around the wall time, and **colors the status word** (green OK / yellow WARN / red WIND DOWN) with the same palette as the statusLine. The statusLine segment now **appends the reset countdown** for any window that is hot (≥ its warn threshold), e.g. `5h 88% 1h15m`, so urgency is visible without running `/usage`.
+
 ## 0.1.5
 - **Separate thresholds for the weekly window.** The 5-hour and 7-day windows are now judged against their own warn/wind-down pairs instead of one shared pair. Defaults: 5h `75% / 90%` (unchanged), weekly `85% / 95%`. Each window is evaluated independently and the most severe band drives the hook (ties go to 5-hour, which resets sooner). Set them with `/usage thresholds <warn> <winddown> <weeklyWarn> <weeklyWinddown>` (weekly pair optional; CLI flags `--weekly-warn` / `--weekly-winddown`). State files predating this migrate cleanly — a file with only `warn`/`windDown` gets the weekly defaults, and the statusLine colors + `/usage` report now reflect each window's own thresholds.
 

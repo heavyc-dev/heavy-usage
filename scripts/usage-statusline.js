@@ -38,13 +38,16 @@ function segment(payload, state) {
   const rl = payload && payload.rate_limits;
   if (!rl) return ''; // API users / pre-first-response: render nothing extra
   const th = state.thresholds;
+  const now = Math.floor(Date.now() / 1000);
   const part = (label, w, weekly) => {
     if (!w || typeof w.used_percentage !== 'number') return null;
     const frac = w.used_percentage / 100;
     const t = lib.thFor(th, weekly);
     // ansi: green <warn, yellow <winddown, red >=winddown
     const color = frac >= t.windDown ? 196 : (frac >= t.warn ? 178 : 71);
-    return `[38;5;${color}m${label} ${Math.round(w.used_percentage)}%[0m`;
+    // once hot (>= warn), append the reset countdown so urgency shows without /usage
+    const tail = frac >= t.warn && w.resets_at ? ` ${lib.untilStr(w.resets_at, now)}` : '';
+    return `[38;5;${color}m${label} ${Math.round(w.used_percentage)}%${tail}[0m`;
   };
   const segs = [part('5h', rl.five_hour, false), part('7d', rl.seven_day, true)].filter(Boolean);
   return segs.join(' · ');

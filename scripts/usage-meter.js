@@ -60,6 +60,13 @@ function thresholdsOk(warn, windDown) {
 
 // --- formatting -------------------------------------------------------------
 
+// Color a status word with the same palette as the statusLine segment:
+// green OK, yellow WARN, red WIND DOWN / AT LIMIT, dim NO DATA.
+function colorWord(word) {
+  const c = word === 'OK' ? 71 : word === 'WARN' ? 178 : word === 'NO DATA' ? 244 : 196;
+  return `\x1b[38;5;${c}m${word}\x1b[0m`;
+}
+
 // One-line threshold summary for the report footer.
 function thresholdLine(state) {
   const t = state.thresholds;
@@ -94,8 +101,10 @@ function formatHuman(live, state) {
       return;
     }
     const frac = w.used_percentage / 100;
-    L.push(`${label}   ${lib.bar(frac)} ${Math.round(w.used_percentage)}%   ${lib.statusWord(frac, lib.thFor(th, weekly))}`);
-    L.push(`         resets in ${lib.untilStr(w.resets_at, now)}`);
+    const word = lib.statusWord(frac, lib.thFor(th, weekly));
+    L.push(`${label}   ${lib.bar(frac)} ${Math.round(w.used_percentage)}%   ${colorWord(word)}`);
+    const clk = lib.clockStr(w.resets_at);
+    L.push(`         resets in ${lib.untilStr(w.resets_at, now)}${clk ? ` (${clk})` : ''}`);
   };
   row('5-hour', live.five_hour, false);
   row('Weekly', live.seven_day, true);

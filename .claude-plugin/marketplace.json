@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "heavy-usage — official Claude Code usage guard + loop wind-down.",
-    "version": "0.1.5"
+    "version": "0.1.6"
   },
   "plugins": [
     {
       "name": "heavy-usage",
       "source": "./",
       "description": "Run loops to the edge of your limits without losing work. Official 5h/weekly usage % + auto wind-down hook (commit & stop before the wall). /usage + /usage setup.",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "author": {
         "name": "Heavy C"
       },
