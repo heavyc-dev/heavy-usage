@@ -41,8 +41,9 @@ Two restarts: first loads the hooks, second activates the statusLine `/usage set
 
 A statusLine script captures the official `rate_limits` to `~/.claude/heavy-usage/usage-live.json` (and chains your existing statusline, so you lose nothing). A `UserPromptSubmit` hook reads it each turn:
 
-- **below wind-down** — silent in the prompt; WARN still shows in the statusLine / `/usage`, so usage pressure never steers work mid-session.
-- **at wind-down (90%)** — injects an authoritative `[heavy-usage] WIND DOWN` line: stop new work, commit, write a resume note, end the loop.
+- **below warn (75%)** — silent.
+- **warn band (75–90%)** — status only: asks Claude to append a one-line usage footer (`🔋 5-hour 78% · resets in 2h30m`) so you see it in the reply. Does **not** change how Claude works.
+- **at wind-down (90%)** — authoritative `[heavy-usage] WIND DOWN`: stop new work, commit, write a resume note, end the loop.
 
 Fires every turn, so each `/loop` iteration sees fresh numbers and closes out right before the wall.
 

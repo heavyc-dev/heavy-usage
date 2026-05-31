@@ -101,12 +101,20 @@ function formatHook(live, state) {
   const w = worst(live);
   if (!w || w.frac == null) return '';
   const th = state.thresholds;
-  // Only wind-down injects into the prompt. Below it (including the WARN band)
-  // we stay silent so usage pressure never steers Claude's work mid-session —
-  // the WARN level still shows in the statusLine and `/usage` report.
-  if (w.frac < th.windDown) return '';
+  // Below warn: fully silent.
+  if (w.frac < th.warn) return '';
   const pctNum = Math.round(w.frac * 100);
   const resets = lib.untilStr(w.window && w.window.resets_at, nowSec());
+  // WARN band: a status-only FYI. It must NOT steer how Claude works (no
+  // "smaller steps", no "commit more") — it only asks Claude to surface the
+  // current numbers to the user as a one-line footer.
+  if (w.frac < th.windDown) {
+    return `[heavy-usage] FYI for the user (does not change how you work): `
+      + `${w.which} usage ${pctNum}%, resets in ${resets}. `
+      + `End your reply with exactly this line and nothing else added:\n`
+      + `> 🔋 ${w.which} ${pctNum}% · resets in ${resets}`;
+  }
+  // Wind-down: the one signal that does change behavior.
   return `[heavy-usage] WIND DOWN — official ${w.which} usage is ${pctNum}% (resets in ${resets}). `
     + `Do not start new work. Finish the current step, commit what is done, write a brief state summary, then stop the loop.`;
 }

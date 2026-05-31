@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.1.4
-- **Only wind-down is injected into the prompt now; the WARN band no longer is.** The `UserPromptSubmit` hook used to inject a behavioral line as soon as 5-hour usage crossed the *warn* threshold (75%), nudging Claude toward smaller steps mid-session before any real limit pressure. It now stays silent in the prompt below the *wind-down* threshold — WARN still shows in the statusLine and the `/usage` report, it just no longer steers work. Net effect: fewer injected tokens and no behavior change until you're actually near the wall.
+- **WARN band no longer steers Claude's work; it's now a status-only FYI.** The `UserPromptSubmit` hook used to nudge Claude toward smaller steps / more commits the moment usage crossed the *warn* threshold (75%) — before any real limit pressure. The warn band now injects only a non-behavioral line asking Claude to append a one-line usage footer (`🔋 <window> <pct>% · resets in <t>`) so the user sees current usage and reset time in the reply. Behavior changes only at *wind-down* (90%), unchanged. Below warn: fully silent.
 - **README trimmed** to a concise what / use-cases / install / commands / how-it-works reference.
 
 ## 0.1.3
