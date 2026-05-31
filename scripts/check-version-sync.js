@@ -4,8 +4,10 @@
 //   .claude-plugin/plugin.json .version
 //   .claude-plugin/marketplace.json .metadata.version AND .plugins[0].version
 //   CHANGELOG.md top "## X.Y.Z" heading
-// Optionally (--tag vX.Y.Z or env GITHUB_REF_NAME=vX.Y.Z) asserts the git tag
-// matches too. Exits non-zero listing every mismatch. Pure Node, no deps.
+// Optionally (--tag vX.Y.Z) asserts the git tag matches too — used at release
+// time. Without --tag the tag check is skipped (so a plain branch-push CI run
+// does NOT compare the branch name against the version). Exits non-zero listing
+// every mismatch. Pure Node, no deps.
 //
 // Run:  node scripts/check-version-sync.js [--tag v1.1.0]
 // Importable: require('./check-version-sync').collect() -> {sources, mismatches}
@@ -43,11 +45,12 @@ function collect() {
   return { sources, ref, mismatches };
 }
 
+// Only checks when a tag is explicitly passed (--tag at release time). No env
+// fallback: a branch-push CI run has no tag to compare and must not fail.
 function checkTag(ref, tagArg) {
-  const raw = tagArg || process.env.GITHUB_REF_NAME;
-  if (!raw) return null;
-  const tag = raw.replace(/^v/, '');
-  return tag === ref ? null : `git tag ${raw} != version ${ref}`;
+  if (!tagArg) return null;
+  const tag = tagArg.replace(/^v/, '');
+  return tag === ref ? null : `git tag ${tagArg} != version ${ref}`;
 }
 
 function main() {
@@ -68,7 +71,7 @@ function main() {
     console.error('\n  sources:', JSON.stringify(sources, null, 2));
     process.exit(1);
   }
-  console.log(`✓ version sync OK — all sources at ${ref}${tagArg || process.env.GITHUB_REF_NAME ? ' (tag matches)' : ''}`);
+  console.log(`✓ version sync OK — all sources at ${ref}${tagArg ? ' (tag matches)' : ''}`);
 }
 
 if (require.main === module) main();
