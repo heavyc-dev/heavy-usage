@@ -37,7 +37,7 @@ Claude Code passes the official `rate_limits` block (`five_hour` / `seven_day`, 
 ## Install
 
 ```sh
-claude plugin marketplace add "C:\heavy-usage"
+claude plugin marketplace add heavyc-dev/heavy-usage
 claude plugin install heavy-usage@heavy-usage
 # restart Claude Code, then:
 /usage setup
