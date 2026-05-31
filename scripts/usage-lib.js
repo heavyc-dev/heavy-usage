@@ -18,8 +18,15 @@ const STATE_DEFAULTS = {
   // weeklyWarn/weeklyWindDown are the 7-day window (it moves slower and the
   // overshoot cost differs, so it gets its own, higher pair by default).
   thresholds: { warn: 0.75, windDown: 0.90, weeklyWarn: 0.85, weeklyWindDown: 0.95 },
+  // half-width (percentage points) of the "on track" band around linear pace.
+  // |used% - elapsed%| within this -> on track; beyond -> early / won't reach.
+  paceBandPp: 10,
   innerStatusline: null,               // command string chained after heavy-usage's segment
 };
+
+// Fixed window lengths (seconds). The official windows reset at resets_at, so
+// the window started resets_at - WINDOW_SEC; elapsed fraction follows from that.
+const WINDOW_SEC = { five: 5 * 3600, seven: 7 * 86400 };
 
 function claudeDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -79,6 +86,12 @@ function sanitizeThresholds(th) {
   };
 }
 
+// Guard the pace band: a finite number in (0,100]. Anything else (NaN, <=0,
+// >100, hand-edited junk) falls back to the default so pace keeps rendering.
+function sanitizePaceBand(b) {
+  return Number.isFinite(b) && b > 0 && b <= 100 ? b : STATE_DEFAULTS.paceBandPp;
+}
+
 // Resolve the {warn, windDown} pair for a window. weekly=true returns the
 // weekly pair; if a thresholds object lacks weekly fields (an old/partial
 // object, as several tests pass), it falls back to the 5-hour pair so behavior
@@ -97,6 +110,7 @@ function readState() {
       ...STATE_DEFAULTS,
       ...p,
       thresholds: sanitizeThresholds({ ...STATE_DEFAULTS.thresholds, ...(p.thresholds || {}) }),
+      paceBandPp: sanitizePaceBand(p.paceBandPp),
     };
   } catch {
     return { ...STATE_DEFAULTS, thresholds: { ...STATE_DEFAULTS.thresholds } };
@@ -141,6 +155,39 @@ function untilStr(resetsAtSec, nowSec) {
   return `${m}m`;
 }
 
+// --- pace ("on track to hit the limit") -------------------------------------
+
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+// Fraction 0-1 of a window already elapsed, from its reset time. null if no
+// resets_at/windowSec. windowSec is WINDOW_SEC.five or .seven.
+function elapsedFrac(resetsAtSec, nowSec, windowSec) {
+  if (!resetsAtSec || !windowSec) return null;
+  return clamp01((windowSec - (resetsAtSec - nowSec)) / windowSec);
+}
+
+// Pace delta in percentage points: used% minus the linear-pace expectation
+// (elapsed fraction of the window). Positive = ahead of pace (trending to hit
+// the limit before reset); negative = behind (won't reach it at this rate).
+function paceDelta(usedPct, resetsAtSec, nowSec, windowSec) {
+  const e = elapsedFrac(resetsAtSec, nowSec, windowSec);
+  if (e == null || typeof usedPct !== 'number') return null;
+  return usedPct - e * 100;
+}
+
+// Classify the pace delta into a display tag. Returns null when it can't be
+// computed (no resets_at). Within +/-bandPp -> on track (word ''), above ->
+// 'early', below -> "won't reach". mag is the signed pp text the bar/report show.
+function paceTag(usedPct, resetsAtSec, nowSec, windowSec, bandPp) {
+  const d = paceDelta(usedPct, resetsAtSec, nowSec, windowSec);
+  if (d == null) return null;
+  const band = sanitizePaceBand(bandPp);
+  const r = Math.round(d);
+  if (d > band) return { state: 'ahead', word: 'early', mag: `+${r}%` };
+  if (d < -band) return { state: 'behind', word: "won't reach", mag: `${r}%` };
+  return { state: 'ontrack', word: '', mag: `±${Math.abs(r)}%` };
+}
+
 function bar(frac) {
   if (frac == null) return '—';
   const f = Math.max(0, Math.min(20, Math.round(frac * 20)));
@@ -148,7 +195,8 @@ function bar(frac) {
 }
 
 module.exports = {
-  STATE_DEFAULTS, claudeDir, stateDir, statePath, livePath,
-  atomicWriteJson, validPair, sanitizeThresholds, thFor, readState, writeState, readLive, writeLive,
+  STATE_DEFAULTS, WINDOW_SEC, claudeDir, stateDir, statePath, livePath,
+  atomicWriteJson, validPair, sanitizeThresholds, sanitizePaceBand, thFor, readState, writeState, readLive, writeLive,
   statusWord, untilStr, clockStr, bar,
+  elapsedFrac, paceDelta, paceTag,
 };

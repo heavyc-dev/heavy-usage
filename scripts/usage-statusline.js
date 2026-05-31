@@ -39,15 +39,24 @@ function segment(payload, state) {
   if (!rl) return ''; // API users / pre-first-response: render nothing extra
   const th = state.thresholds;
   const now = Math.floor(Date.now() / 1000);
+  const C = String.fromCharCode(27); // ESC, for inline ANSI color around the pace tag
   const part = (label, w, weekly) => {
     if (!w || typeof w.used_percentage !== 'number') return null;
     const frac = w.used_percentage / 100;
     const t = lib.thFor(th, weekly);
     // ansi: green <warn, yellow <winddown, red >=winddown
     const color = frac >= t.windDown ? 196 : (frac >= t.warn ? 178 : 71);
+    // pace tag in its OWN color so the % keeps its threshold color and pace
+    // reads as secondary: ahead=178 (caution), behind=73 (headroom), ontrack=244 (dim)
+    const windowSec = weekly ? lib.WINDOW_SEC.seven : lib.WINDOW_SEC.five;
+    const tag = lib.paceTag(w.used_percentage, w.resets_at, now, windowSec, state.paceBandPp);
+    const paceColor = tag ? (tag.state === 'ahead' ? 178 : tag.state === 'behind' ? 73 : 244) : 0;
+    const paceTxt = tag ? (tag.word ? `${tag.word} ${tag.mag}` : tag.mag) : '';
     // once hot (>= warn), append the reset countdown so urgency shows without /usage
     const tail = frac >= t.warn && w.resets_at ? ` ${lib.untilStr(w.resets_at, now)}` : '';
-    return `[38;5;${color}m${label} ${Math.round(w.used_percentage)}%${tail}[0m`;
+    // reset, emit pace in its own color, then restore the window color for tail
+    const pace = paceTxt ? `${C}[0m ${C}[38;5;${paceColor}m${paceTxt}${C}[38;5;${color}m` : '';
+    return `[38;5;${color}m${label} ${Math.round(w.used_percentage)}%${pace}${tail}[0m`;
   };
   const segs = [part('5h', rl.five_hour, false), part('7d', rl.seven_day, true)].filter(Boolean);
   return segs.join(' · ');

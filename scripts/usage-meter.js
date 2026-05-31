@@ -74,7 +74,8 @@ function thresholdLine(state) {
   const wk = lib.thFor(t, true);
   const pct = (n) => `${Math.round(n * 100)}%`;
   return `Hook ${state.enabled ? 'ON' : 'OFF'} · 5h warn ${pct(five.warn)}/wind-down ${pct(five.windDown)}`
-    + ` · weekly warn ${pct(wk.warn)}/wind-down ${pct(wk.windDown)}`;
+    + ` · weekly warn ${pct(wk.warn)}/wind-down ${pct(wk.windDown)}`
+    + ` · pace ±${lib.sanitizePaceBand(state.paceBandPp)}pp`;
 }
 
 function formatHuman(live, state) {
@@ -104,7 +105,10 @@ function formatHuman(live, state) {
     const word = lib.statusWord(frac, lib.thFor(th, weekly));
     L.push(`${label}   ${lib.bar(frac)} ${Math.round(w.used_percentage)}%   ${colorWord(word)}`);
     const clk = lib.clockStr(w.resets_at);
-    L.push(`         resets in ${lib.untilStr(w.resets_at, now)}${clk ? ` (${clk})` : ''}`);
+    const windowSec = weekly ? lib.WINDOW_SEC.seven : lib.WINDOW_SEC.five;
+    const tag = lib.paceTag(w.used_percentage, w.resets_at, now, windowSec, state.paceBandPp);
+    const pace = tag ? ` · pace ${tag.mag} (${tag.word || 'on track'})` : '';
+    L.push(`         resets in ${lib.untilStr(w.resets_at, now)}${clk ? ` (${clk})` : ''}${pace}`);
   };
   row('5-hour', live.five_hour, false);
   row('Weekly', live.seven_day, true);
@@ -176,10 +180,17 @@ function main() {
     };
     const five = readPair('--warn', '--winddown', lib.thFor(state.thresholds, false));
     const weekly = readPair('--weekly-warn', '--weekly-winddown', lib.thFor(state.thresholds, true));
-    if (!five.ok || !weekly.ok) {
+    // Optional pace band (percentage points): finite, in (0,100]. A flag present
+    // without a usable value is an error, same as the threshold flags.
+    const bandRaw = getFlag(args, '--pace-band');
+    const bandBad = args.includes('--pace-band') && bandRaw === null;
+    const band = bandRaw != null ? Number(bandRaw) : lib.sanitizePaceBand(state.paceBandPp);
+    const bandOk = !bandBad && Number.isFinite(band) && band > 0 && band <= 100;
+    if (!five.ok || !weekly.ok || !bandOk) {
       process.stderr.write(
         'Invalid thresholds. Pass fractions 0–1 with warn < wind-down, '
         + 'e.g. `thresholds --warn 0.75 --winddown 0.90 --weekly-warn 0.85 --weekly-winddown 0.95`. '
+        + 'Pace band is percentage points in (0,100], e.g. `--pace-band 10`. '
         + 'State unchanged.\n');
       process.exitCode = 1;
       return;
@@ -188,11 +199,13 @@ function main() {
     state.thresholds.windDown = five.windDown;
     state.thresholds.weeklyWarn = weekly.warn;
     state.thresholds.weeklyWindDown = weekly.windDown;
+    state.paceBandPp = band;
     lib.writeState(state);
     const pct = (n) => `${Math.round(n * 100)}%`;
     process.stdout.write(
       `Thresholds — 5h warn ${pct(five.warn)}/wind-down ${pct(five.windDown)}, `
-      + `weekly warn ${pct(weekly.warn)}/wind-down ${pct(weekly.windDown)}\n`);
+      + `weekly warn ${pct(weekly.warn)}/wind-down ${pct(weekly.windDown)}, `
+      + `pace ±${band}pp\n`);
     return;
   }
 
@@ -217,7 +230,7 @@ function main() {
       five_hour: live ? live.five_hour : null,
       seven_day: live ? live.seven_day : null,
       capturedAt: live ? live.capturedAt : null,
-      thresholds: state.thresholds, enabled: state.enabled,
+      thresholds: state.thresholds, paceBandPp: lib.sanitizePaceBand(state.paceBandPp), enabled: state.enabled,
     }, null, 2) + '\n');
     return;
   }

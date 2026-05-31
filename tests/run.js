@@ -54,11 +54,58 @@ test('bar is 20 cells + fills proportionally', () => {
   assert.equal((lib.bar(0.5).match(/█/g) || []).length, 10);
 });
 
+// --- pace -------------------------------------------------------------------
+
+test('elapsedFrac: 0 at window start, ~0.5 mid, clamps to [0,1]', () => {
+  const now = 1_000_000;
+  const W = lib.WINDOW_SEC.five;
+  assert.equal(lib.elapsedFrac(now + W, now, W), 0);          // just reset
+  assert.equal(lib.elapsedFrac(now + W / 2, now, W), 0.5);    // halfway
+  assert.equal(lib.elapsedFrac(now, now, W), 1);              // resets now
+  assert.equal(lib.elapsedFrac(now - 100, now, W), 1);        // past -> clamp 1
+  assert.equal(lib.elapsedFrac(now + 2 * W, now, W), 0);      // before -> clamp 0
+  assert.equal(lib.elapsedFrac(null, now, W), null);
+});
+
+test('paceDelta: used minus linear expectation, signed', () => {
+  const now = 1_000_000;
+  const W = lib.WINDOW_SEC.five;
+  const mid = now + W / 2; // 50% elapsed
+  assert.equal(lib.paceDelta(60, mid, now, W), 10);   // ahead
+  assert.equal(lib.paceDelta(40, mid, now, W), -10);  // behind
+  assert.equal(lib.paceDelta(50, mid, now, W), 0);    // exact
+  assert.equal(lib.paceDelta(50, null, now, W), null);
+});
+
+test('paceTag: band edges + word/mag strings + null without resets_at', () => {
+  const now = 1_000_000;
+  const W = lib.WINDOW_SEC.five;
+  const mid = now + W / 2; // 50% elapsed
+  // within ±10 inclusive -> on track
+  assert.deepEqual(lib.paceTag(60, mid, now, W, 10), { state: 'ontrack', word: '', mag: '±10%' });
+  assert.deepEqual(lib.paceTag(50, mid, now, W, 10), { state: 'ontrack', word: '', mag: '±0%' });
+  // just past the band
+  assert.deepEqual(lib.paceTag(61, mid, now, W, 10), { state: 'ahead', word: 'early', mag: '+11%' });
+  assert.deepEqual(lib.paceTag(39, mid, now, W, 10), { state: 'behind', word: "won't reach", mag: '-11%' });
+  assert.equal(lib.paceTag(50, null, now, W, 10), null);
+});
+
+test('sanitizePaceBand keeps valid, falls back on junk', () => {
+  assert.equal(lib.sanitizePaceBand(15), 15);
+  assert.equal(lib.sanitizePaceBand(100), 100);
+  assert.equal(lib.sanitizePaceBand(0), 10);     // <=0 -> default
+  assert.equal(lib.sanitizePaceBand(150), 10);   // >100 -> default
+  assert.equal(lib.sanitizePaceBand(NaN), 10);
+  assert.equal(lib.sanitizePaceBand('x'), 10);
+  assert.equal(lib.sanitizePaceBand(undefined), 10);
+});
+
 test('readState returns defaults when no file', () => {
   const s = lib.readState();
   assert.equal(s.enabled, true);
   assert.equal(s.thresholds.warn, 0.75);
   assert.equal(s.thresholds.windDown, 0.90);
+  assert.equal(s.paceBandPp, 10);
   assert.equal(s.innerStatusline, null);
 });
 
@@ -167,6 +214,22 @@ test('segment renders 5h/7d, empty without rate_limits', () => {
   assert.ok(seg.includes('5h 24%'));
   assert.ok(seg.includes('7d 41%'));
   assert.equal(sl.segment({}, { thresholds: TH }), '');
+});
+
+test('segment renders pace tag: early / won\'t reach / on-track', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const W = lib.WINDOW_SEC.five;
+  const st = { thresholds: TH, paceBandPp: 10 };
+  const mid = now + Math.floor(W / 2); // 50% elapsed
+  // used 62 vs ~50 elapsed -> ahead
+  assert.ok(sl.segment({ rate_limits: { five_hour: { used_percentage: 62, resets_at: mid } } }, st).includes('early'));
+  // used 12 vs ~50 -> behind
+  assert.ok(sl.segment({ rate_limits: { five_hour: { used_percentage: 12, resets_at: mid } } }, st).includes("won't reach"));
+  // used 50 vs ~50 -> on track (± marker)
+  assert.ok(sl.segment({ rate_limits: { five_hour: { used_percentage: 50, resets_at: mid } } }, st).includes('±'));
+  // no resets_at -> no pace, no crash
+  const np = sl.segment({ rate_limits: { five_hour: { used_percentage: 50 } } }, st);
+  assert.ok(np.includes('5h 50%') && !np.includes('±') && !np.includes('early'));
 });
 
 test('chainInner empty when no inner command', () => {
@@ -282,6 +345,28 @@ test('thresholds CLI sets weekly pair independently, validates it', () => {
   assert.equal(s.thresholds.windDown, 0.8);
 });
 
+test('thresholds CLI sets pace band, rejects bad value, leaves state unchanged', () => {
+  const { spawnSync } = require('child_process');
+  const before = lib.readState();
+  before.thresholds = { warn: 0.6, windDown: 0.8, weeklyWarn: 0.85, weeklyWindDown: 0.95 };
+  before.paceBandPp = 10;
+  lib.writeState(before);
+  const run = (extra) => spawnSync(process.execPath,
+    [path.join(__dirname, '..', 'scripts', 'usage-meter.js'), 'thresholds', ...extra],
+    { env: { ...process.env, CLAUDE_CONFIG_DIR: TMP }, encoding: 'utf8' });
+  // bad pace band rejected, state unchanged
+  assert.equal(run(['--pace-band', '0']).status, 1);
+  assert.equal(run(['--pace-band', '150']).status, 1);
+  assert.equal(run(['--pace-band', 'foo']).status, 1);
+  assert.equal(run(['--pace-band']).status, 1);
+  assert.equal(lib.readState().paceBandPp, 10);
+  // valid update, thresholds left alone
+  assert.equal(run(['--pace-band', '15']).status, 0);
+  const s = lib.readState();
+  assert.equal(s.paceBandPp, 15);
+  assert.equal(s.thresholds.warn, 0.6);
+});
+
 // --- formatting on partial / missing data -----------------------------------
 
 test('formatHuman renders with data and reports no-data', () => {
@@ -293,6 +378,8 @@ test('formatHuman renders with data and reports no-data', () => {
   assert.ok(out.includes('24%') && out.includes('5-hour'), out);
   // absolute reset clock shown next to the relative countdown
   assert.match(out, /resets in .+ \(\d\d:\d\d\)/);
+  // pace tag shown on the resets line
+  assert.match(out, /· pace .+\((early|won't reach|on track)\)/);
   assert.ok(meter.formatHuman(null, { thresholds: th, enabled: true }).includes('No usage data yet'));
 });
 

@@ -6,9 +6,9 @@ Surfaces your **official** 5-hour and weekly rate-limit numbers (the same ones `
 
 ```
 heavy-usage — official usage (Claude Code rate_limits)
-5-hour   ████████████████░░░░ 78%   WARN     resets in 2h 30m
-Weekly   ██████████████████░░ 92%   WIND DOWN resets in 111h 6m
-Hook ON · warn 75% · wind-down 90%
+5-hour   ████████████████░░░░ 78%   WARN     resets in 2h 30m · pace +18% (early)
+Weekly   ██████████████████░░ 92%   WIND DOWN resets in 111h 6m · pace ±3% (on track)
+Hook ON · warn 75% · wind-down 90% · pace ±10pp
 ```
 
 ## Use it if you want to
@@ -32,10 +32,10 @@ Two restarts: first loads the hooks, second activates the statusLine `/usage set
 
 | Command | Does |
 |---------|------|
-| `/usage` | Official 5h + weekly usage — % used, status, reset countdown |
+| `/usage` | Official 5h + weekly usage — % used, status, reset countdown, pace |
 | `/usage setup` | One-time wiring (backs up `settings.json`, chains your existing statusline) |
 | `/usage on` · `/usage off` | Toggle the wind-down hook |
-| `/usage thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>]` | Tune thresholds (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`) |
+| `/usage thresholds <warn> <winddown> [<weeklyWarn> <weeklyWinddown>] [pace <pp>]` | Tune thresholds (fractions; defaults 5h `0.75 0.90`, weekly `0.85 0.95`) and the pace band (`--pace-band <pp>`, default 10) |
 
 ## How it works
 
@@ -46,6 +46,8 @@ A statusLine script captures the official `rate_limits` to `~/.claude/heavy-usag
 - **at wind-down** — authoritative `[heavy-usage] WIND DOWN`: stop new work, commit, write a resume note, end the loop.
 
 Fires every turn, so each `/loop` iteration sees fresh numbers and closes out right before the wall.
+
+**Pace.** Next to each %, the status bar and report show how your burn compares to a linear pace for that window (`used% − elapsed%`, derived from the window length + `resets_at`). Within the band (default ±10pp) → **on track** (`±2%`); above → **early** (`early +18%`, you'll hit the limit before reset); below → **won't reach** (`won't reach -22%`). Set the band with `/usage thresholds … pace <pp>`.
 
 ## Uninstall
 

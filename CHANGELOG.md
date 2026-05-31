@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.0
+- **Pace indicator — are you on track to hit the limit?** Next to each window's % the statusLine and `/usage` report now show how far usage is above or below a linear burn for that window: `used% − elapsed%` in percentage points. Within a band (default ±10pp) reads **on track** (`±2%`); above it reads **early** (`early +18%`, trending to hit the limit before reset); below it reads **won't reach** (`won't reach -22%`, won't hit it at this rate). Derived from the window length + `resets_at` already in `rate_limits` — no new data, no extra calls. Shown for both 5-hour and weekly. Set the band with `/usage thresholds … --pace-band <pp>` (percentage points, 0–100; default 10).
+
 ## 1.0.0
 First stable release. The guard is feature-complete and tested (35 unit tests, cross-platform CI). Highlights since 0.1.0:
 - **Injection only winds work down at the wall.** Below wind-down the prompt is never steered; the warn band emits a status-only footer (current usage + reset) and nothing more. Behavior changes solely at wind-down.
