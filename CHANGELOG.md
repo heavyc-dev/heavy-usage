@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.3
+- **Default thresholds changed to warn 75% / wind-down 90%** (were 70% / 85%). Wind-down risk is asymmetric — overshooting the limit mid-task is worse than stopping a little early — but for the typical user the old 85% stopped sooner than necessary given the every-turn re-check and the 70% warn tier. Heavy unattended loops with large context / many subagents per turn (where one turn can jump usage several points) should still lower these via `/usage thresholds 0.65 0.80`.
+
 ## 0.1.2
 - **Input hardening (was a silent failure).** `/usage thresholds` now validates its arguments: a missing value, a non-number, an out-of-range value (outside 0–1), or an inverted pair (`warn ≥ wind-down`) is rejected with a message and a non-zero exit, leaving state unchanged. Previously a bad value could be stored as `NaN`, which made every `frac >= NaN` comparison false and **silently disabled the wind-down hook**. `readState` now also sanitizes a corrupt or hand-edited thresholds block back to defaults.
 - **Stale statusLine detection.** Because statusLine settings can't expand `${CLAUDE_PLUGIN_ROOT}`, `/usage setup` writes a concrete path. If a plugin update moves that file, the SessionStart check now warns (instead of staying silent) that the statusLine points at a missing file and to re-run `/usage setup`.

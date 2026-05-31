@@ -13,7 +13,7 @@
 //   node usage-meter.js                 human report (5h / 7d % + reset countdown)
 //   node usage-meter.js --json          machine JSON
 //   node usage-meter.js --hook          one-line wind-down context (silent below warn)
-//   node usage-meter.js thresholds --warn 0.7 --winddown 0.85
+//   node usage-meter.js thresholds --warn 0.75 --winddown 0.90
 //   node usage-meter.js enable | disable    toggle the wind-down hook
 //
 // Data is produced by the statusLine capturer; run `/usage setup` to wire it.
@@ -131,7 +131,7 @@ function main() {
     if (warnBadValue || wdBadValue || !thresholdsOk(warn, windDown)) {
       process.stderr.write(
         'Invalid thresholds. Pass fractions 0–1 with warn < wind-down, '
-        + 'e.g. `thresholds --warn 0.7 --winddown 0.85`. State unchanged.\n');
+        + 'e.g. `thresholds --warn 0.75 --winddown 0.90`. State unchanged.\n');
       process.exitCode = 1;
       return;
     }

@@ -57,8 +57,8 @@ test('bar is 20 cells + fills proportionally', () => {
 test('readState returns defaults when no file', () => {
   const s = lib.readState();
   assert.equal(s.enabled, true);
-  assert.equal(s.thresholds.warn, 0.70);
-  assert.equal(s.thresholds.windDown, 0.85);
+  assert.equal(s.thresholds.warn, 0.75);
+  assert.equal(s.thresholds.windDown, 0.90);
   assert.equal(s.innerStatusline, null);
 });
 
@@ -70,7 +70,7 @@ test('writeState/readState round-trip + merges new keys', () => {
   const back = lib.readState();
   assert.equal(back.thresholds.windDown, 0.9);
   assert.equal(back.innerStatusline, 'printf X');
-  assert.equal(back.thresholds.warn, 0.70); // default preserved
+  assert.equal(back.thresholds.warn, 0.75); // default preserved
 });
 
 test('atomic write leaves no tmp file', () => {
@@ -191,16 +191,16 @@ test('thresholdsOk rejects NaN / out-of-range / inverted / equal', () => {
 
 test('sanitizeThresholds keeps valid, replaces invalid', () => {
   assert.deepEqual(lib.sanitizeThresholds({ warn: 0.6, windDown: 0.8 }), { warn: 0.6, windDown: 0.8 });
-  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.9, windDown: 0.7 }), { warn: 0.70, windDown: 0.85 });
-  assert.deepEqual(lib.sanitizeThresholds({ warn: 'x', windDown: 2 }), { warn: 0.70, windDown: 0.85 });
-  assert.deepEqual(lib.sanitizeThresholds(null), { warn: 0.70, windDown: 0.85 });
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 0.9, windDown: 0.7 }), { warn: 0.75, windDown: 0.90 });
+  assert.deepEqual(lib.sanitizeThresholds({ warn: 'x', windDown: 2 }), { warn: 0.75, windDown: 0.90 });
+  assert.deepEqual(lib.sanitizeThresholds(null), { warn: 0.75, windDown: 0.90 });
 });
 
 test('readState sanitizes a corrupt thresholds object on disk', () => {
   lib.atomicWriteJson(lib.statePath(), { version: 1, enabled: true, thresholds: { warn: 'x', windDown: 2 }, innerStatusline: null });
   const s = lib.readState();
-  assert.equal(s.thresholds.warn, 0.70);
-  assert.equal(s.thresholds.windDown, 0.85);
+  assert.equal(s.thresholds.warn, 0.75);
+  assert.equal(s.thresholds.windDown, 0.90);
 });
 
 test('thresholds CLI rejects bad input, exits non-zero, leaves state unchanged', () => {

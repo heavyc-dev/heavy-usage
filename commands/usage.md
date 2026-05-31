@@ -23,7 +23,7 @@ Scripts (pure Node, run with `node`):
 |---|---|
 | *(empty)* | `node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-meter.js"` — print the report verbatim, then one plain-language line |
 | `on` / `off` | `node "...usage-meter.js" enable` / `disable` — toggle the auto wind-down hook |
-| `thresholds <warn> <winddown>` | `node "...usage-meter.js" thresholds --warn <warn> --winddown <winddown>` (fractions, e.g. `0.7 0.85`) |
+| `thresholds <warn> <winddown>` | `node "...usage-meter.js" thresholds --warn <warn> --winddown <winddown>` (fractions, e.g. `0.75 0.90`) |
 | `setup` | Wire the statusLine — follow the **Setup** procedure below |
 
 ## Setup procedure (`/usage setup`)
@@ -56,9 +56,9 @@ Goal: make `~/.claude/settings.json` `statusLine` point at heavy-usage's capture
 
 ## Auto wind-down (the loop feature)
 With the hook on (default) the `UserPromptSubmit` hook checks the worst of your two windows each turn:
-- below **warn** (default 70%) → silent (normal sessions aren't spammed),
+- below **warn** (default 75%) → silent (normal sessions aren't spammed),
 - at **warn** → "prefer small steps, commit often",
-- at **wind-down** (default 85%) → firm "stop starting new work, commit, summarize state, end the loop".
+- at **wind-down** (default 90%) → firm "stop starting new work, commit, summarize state, end the loop".
 
 Because it fires every prompt, each `/loop` iteration sees fresh official numbers and the loop closes out gracefully right before the wall. State (`enabled`, `thresholds`, `innerStatusline`) lives in `~/.claude/heavy-usage/usage-state.json` (a fixed path so the statusLine, hook, and command always agree).
 

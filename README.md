@@ -9,12 +9,12 @@ These are the **real** figures Claude Code shows in `/usage` — not a token est
 ```
 heavy-usage — official usage (Claude Code rate_limits)
 ──────────────────────────────────────────
-5-hour   ██████████████░░░░░░ 72%   WARN
+5-hour   ████████████████░░░░ 78%   WARN
          resets in 2h 30m
-Weekly   ██████████████████░░ 88%   WIND DOWN
+Weekly   ██████████████████░░ 92%   WIND DOWN
          resets in 111h 6m
 ──────────────────────────────────────────
-Hook ON · warn 70% · wind-down 85% · updated just now
+Hook ON · warn 75% · wind-down 90% · updated just now
 ```
 
 ## Why
@@ -28,7 +28,7 @@ There is **no usage API** ([claude-code#44328](https://github.com/anthropics/cla
 ```
 statusLine render → usage-statusline.js → usage-live.json (official 5h/weekly %)
         ├─ /usage             → live %, status bars, reset countdown
-        └─ UserPromptSubmit   → 70% warn · 85% WIND DOWN (commit, summarize, stop)
+        └─ UserPromptSubmit   → 75% warn · 90% WIND DOWN (commit, summarize, stop)
               hook reads usage-live.json every turn
 ```
 
@@ -53,7 +53,7 @@ Two restarts is expected: the first loads the plugin's hooks, and the second act
 | `/usage` | Official 5h + weekly usage — % used, status, reset countdown |
 | `/usage setup` | One-time wiring: sets the statusLine (backs up `settings.json`, chains your current one) and offers to add a wind-down primer to your global `CLAUDE.md` |
 | `/usage on` · `/usage off` | Toggle the auto wind-down hook |
-| `/usage thresholds <warn> <winddown>` | Tune thresholds (fractions; defaults `0.70 0.85`) |
+| `/usage thresholds <warn> <winddown>` | Tune thresholds (fractions; defaults `0.75 0.90`) |
 
 ## The wind-down
 
@@ -61,9 +61,9 @@ While the hook is on (default), each turn it checks the worst of your two window
 
 | Usage | Behavior |
 |-------|----------|
-| below **70%** (warn) | silent — normal sessions are never spammed |
-| **70%** | "prefer small steps, commit often" |
-| **85%** (wind-down) | "stop starting new work, commit, write a resume note, end the loop" |
+| below **75%** (warn) | silent — normal sessions are never spammed |
+| **75%** | "prefer small steps, commit often" |
+| **90%** (wind-down) | "stop starting new work, commit, write a resume note, end the loop" |
 
 Because it fires on every prompt, each `/loop` iteration sees fresh official numbers, and the loop closes out gracefully right before the wall. The optional `CLAUDE.md` primer (added in `/usage setup`) makes Claude treat the `[heavy-usage] WIND DOWN` line as an authoritative stop rather than an FYI.
 

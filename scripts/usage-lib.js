@@ -14,7 +14,7 @@ const os = require('os');
 const STATE_DEFAULTS = {
   version: 1,
   enabled: true,                       // wind-down hook on/off
-  thresholds: { warn: 0.70, windDown: 0.85 }, // fractions of the official 0-1 usage
+  thresholds: { warn: 0.75, windDown: 0.90 }, // fractions of the official 0-1 usage
   innerStatusline: null,               // command string chained after heavy-usage's segment
 };
 
