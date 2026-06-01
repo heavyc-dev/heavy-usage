@@ -51,6 +51,18 @@ Fires every turn, so each `/loop` iteration sees fresh numbers and closes out ri
 
 **Stale-data guard.** The statusLine refreshes the captured numbers only when the UI renders; in a headless/unattended run it can stop while the session keeps prompting. If the capture is older than the stale window (default 15m), the wind-down hook **annotates** its message so Claude and you know real usage may be higher — it never *suppresses* a wind-down on stale data (overshooting the wall is worse than stopping early). Tune with `/usage thresholds … stale <min>`.
 
+## What this plugin runs on your machine
+
+Full transparency — heavy-usage is **pure Node, no npm dependencies**, and the only code it runs is the `scripts/` in this repo:
+
+- **Hooks run local Node on your machine.** `SessionStart` runs `scripts/usage-session-check.js` (checks setup); `UserPromptSubmit` runs `scripts/usage-meter.js` every turn (reads usage, may append the wind-down line). A statusLine script (`scripts/usage-statusline.js`) runs when the status bar renders.
+- **No network calls.** It never makes HTTP requests, phones home, or sends telemetry. It only reads the `rate_limits` Claude Code already puts in the statusLine payload.
+- **The only external programs it launches:** read-only `git` (`rev-parse`, `ls-files`) for `/sweep`'s file list, and — if you had a statusLine before setup — **your own previous statusLine command**, which it chains so you don't lose it. It launches nothing else.
+- **Files it reads/writes** (all local): `~/.claude/heavy-usage/` (its own state + captured numbers), and on setup it edits `~/.claude/settings.json` and your global `CLAUDE.md` — **backing up both** to `~/.claude/backups/heavy-usage/<timestamp>/` first.
+- **No secrets.** It does not read `.env`, credential, or key files.
+
+Read the scripts yourself — they're small and dependency-free.
+
 ## Sweep — run a review loop to the limit
 
 `/sweep <mode>` runs a **usage-budgeted, resumable** sweep of the codebase: it scales how
