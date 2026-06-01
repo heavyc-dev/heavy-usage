@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.1
+- **Wording: drop the "official" self-label for marketplace-directory eligibility.** The `package.json` and `marketplace.json` descriptions previously called heavy-usage an "official Claude Code usage guard" — "official" belongs to Anthropic, and the directory review screens for it. Reworded so "official" only ever modifies the *rate-limit numbers* it reads (a true data-source claim), never the plugin itself. No code or behavior change.
+
 ## 1.3.0
 - **`/sweep` — a usage-budgeted, resumable codebase sweep (the loop's killer app).** Bundles a new skill (`skills/sweep/`) plus two read-only subagents (`sweep-scout`, `sweep-verifier`). It runs a repeated review/discovery pass and **scales effort to remaining headroom**: while you have room it fans out scouts in parallel, and as usage approaches wind-down it collapses to a single inline pass — then stops cleanly at the wall with findings committed and a resume note written. Canonical run: `/loop /sweep <mode>` (the `/loop` skill re-invokes; this skill does each iteration; the wind-down hook ends the loop).
   - **Modes:** `bugs` (find + adversarially verify defects), `review` (reuse/simplify/perf/altitude), `features` (enhancement ideas), `roadmap` (phased synthesis). Modes are a table — adding one is a row.
